@@ -14,7 +14,7 @@ import { RenderSystem } from '../systems/RenderSystem.js';
 import { ScoreSystem } from '../systems/ScoreSystem.js';
 import { SpawnSystem } from '../systems/SpawnSystem.js';
 import { UIManager } from '../ui/UIManager.js';
-import { ClawState, GameState } from './GameState.js';
+import { AppState, ClawState, GameState } from './GameState.js';
 import { GameLoop } from './GameLoop.js';
 
 export class Game {
@@ -62,17 +62,17 @@ export class Game {
       this.state.selectedCharacter = character;
       this.ui.pokedex.renderDetail(character, this.state.pokedexCounts);
     });
-    this.resetGame();
-    this.state.startScreenActive = true;
+    this.resetCurrentRun();
+    this.state.appState = AppState.MENU;
     this.ui.startScreen.show();
+    this.ui.setBackVisible(false);
     this.refreshStartScreen();
     this.loop = new GameLoop((time) => this.update(time));
-    this.loop.start();
   }
 
   bindUI() {
     this.ui.startScreen.bind({
-      onStart: () => this.enterGame(),
+      onStart: () => this.startGame(),
       onReset: () => this.resetAllSavedData(),
       onModeSelect: (mode) => {
         const selected = this.difficulty.select(mode);
@@ -81,9 +81,16 @@ export class Game {
       },
       getMode: () => this.state.mode,
     });
-    this.ui.newGameButton.addEventListener('click', () => this.resetGame());
+    this.ui.backButton.addEventListener('click', () => this.requestReturnToMenu());
+    this.ui.backConfirm.bind({
+      onStay: () => this.cancelReturnToMenu(),
+      onLeave: () => this.returnToMenu(),
+    });
+    this.ui.newGameButton.addEventListener('click', () => this.resetCurrentRun());
     this.ui.gameOver.bind(() => {
-      this.resetGame();
+      this.state.appState = AppState.PLAYING;
+      this.resetCurrentRun();
+      this.resumeGame();
       this.ui.grabButton.focus({ preventScroll: true });
     });
   }
@@ -91,7 +98,7 @@ export class Game {
   bindInput() {
     const api = {
       canMove: () => this.canMove(),
-      isStartScreenActive: () => this.state.startScreenActive,
+      isGameplayActive: () => this.state.appState === AppState.PLAYING,
       startMoving: (direction) => this.startMoving(direction),
       stopMoving: () => this.stopMoving(),
       stepMove: (direction) => this.stepMove(direction),
@@ -104,7 +111,7 @@ export class Game {
   }
 
   canMove() {
-    return !this.state.startScreenActive && this.claw.state === ClawState.READY && this.state.turns > 0;
+    return this.state.appState === AppState.PLAYING && this.claw.state === ClawState.READY && this.state.turns > 0;
   }
 
   startMoving(direction) {
@@ -122,11 +129,77 @@ export class Game {
     this.claw.x = Math.max(45, Math.min(MACHINE.width - 45, this.claw.x + direction * 62));
   }
 
-  enterGame() {
-    this.state.startScreenActive = false;
+  startGame() {
+    this.state.appState = AppState.PLAYING;
     this.ui.startScreen.hide();
-    this.resetGame();
+    this.ui.setBackVisible(true);
+    this.resetCurrentRun();
+    this.resumeGame();
     this.ui.grabButton.focus({ preventScroll: true });
+  }
+
+  enterGame() { this.startGame(); }
+
+  requestReturnToMenu() {
+    if (this.state.appState === AppState.MENU) return;
+    if (this.state.appState === AppState.GAME_OVER) {
+      this.returnToMenu();
+      return;
+    }
+    const hasProgress = this.state.score > 0 || this.state.turns < GAME_CONFIG.initialTurns;
+    if (!hasProgress) {
+      this.returnToMenu();
+      return;
+    }
+    this.pauseGame();
+    this.ui.setGameInteractive(false);
+    this.ui.backConfirm.show();
+  }
+
+  pauseGame() {
+    this.stopMoving();
+    this.state.appState = AppState.PAUSED;
+    this.state.lastTime = 0;
+    this.loop?.stop();
+    this.ui.clearPressed();
+  }
+
+  resumeGame() {
+    this.state.appState = AppState.PLAYING;
+    this.state.lastTime = 0;
+    this.ui.setGameInteractive(true);
+    this.loop.start();
+  }
+
+  cancelReturnToMenu() {
+    if (this.state.appState !== AppState.PAUSED) return;
+    this.ui.backConfirm.hide();
+    this.resumeGame();
+    this.ui.backButton.focus({ preventScroll: true });
+  }
+
+  cancelCurrentRound() {
+    this.stopMoving();
+    this.claw.reset();
+    this.chute.reset();
+    this.state.particles = [];
+    this.state.lastTime = 0;
+    this.ui.message.reset();
+    this.ui.clearPressed();
+    this.ui.setGrabbing(false);
+    this.ui.setGameOver(false);
+    this.ui.gameOver.hide();
+  }
+
+  returnToMenu() {
+    this.pauseGame();
+    this.cancelCurrentRound();
+    this.state.appState = AppState.MENU;
+    this.ui.backConfirm.hide();
+    this.ui.setBackVisible(false);
+    this.ui.startScreen.show();
+    this.refreshStartScreen();
+    this.ui.startScreen.startButton.focus({ preventScroll: true });
   }
 
   resetAllSavedData() {
@@ -136,11 +209,11 @@ export class Game {
     this.state.trainerXp = 0;
     this.difficulty.reset();
     Object.keys(this.state.pokedexCounts).forEach((name) => { this.state.pokedexCounts[name] = 0; });
-    this.resetGame();
+    this.resetCurrentRun();
     this.refreshStartScreen();
   }
 
-  resetGame() {
+  resetCurrentRun() {
     this.ui.message.reset();
     this.state.resetRun();
     this.characters.forEach((character) => { character.newThisGame = false; });
@@ -157,10 +230,13 @@ export class Game {
     this.ui.message.showStatus('READY');
   }
 
+  resetGame() { this.resetCurrentRun(); }
+
   finishGame() {
     this.stopMoving();
     this.ui.message.hide(true);
     this.claw.state = ClawState.GAME_OVER;
+    this.state.appState = AppState.GAME_OVER;
     this.claw.openAmount = 1;
     this.ui.setGrabbing(false);
     this.ui.setPressed(this.ui.grabButton, false);
@@ -186,6 +262,7 @@ export class Game {
   }
 
   update(time) {
+    if (this.state.appState !== AppState.PLAYING) return;
     const elapsed = this.state.lastTime ? Math.min(time - this.state.lastTime, 50) : 0;
     if (this.claw.state === ClawState.READY && this.state.heldDirection !== 0) {
       this.claw.x = Math.max(45, Math.min(MACHINE.width - 45, this.claw.x + this.state.heldDirection * elapsed * 0.28));
@@ -204,6 +281,7 @@ export class Game {
       bestCombo: this.state.bestCombo,
       caught: this.state.caughtThisGame,
       mode: this.state.mode,
+      appState: this.state.appState,
       clawState: this.claw.state,
       clawX: this.claw.x,
       prizeCount: this.state.prizes.length,

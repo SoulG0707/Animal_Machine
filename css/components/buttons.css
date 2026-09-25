@@ -17,3 +17,28 @@
 .reset-btn:hover { color: var(--surface); background: var(--coral); }
 .reset-btn:active, .play-again-btn:active { transform: translateY(2px); }
 
+.back-btn {
+  display: inline-flex;
+  min-width: 66px;
+  min-height: 34px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 10px;
+  border: 1px solid rgba(36, 51, 70, 0.22);
+  border-radius: 7px;
+  color: var(--ink);
+  background: rgba(255, 252, 243, 0.72);
+  box-shadow: 0 2px 0 rgba(36, 51, 70, 0.12);
+  font: 600 9px 'DM Mono', monospace;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  transition: transform 140ms ease, border-color 140ms ease, background-color 140ms ease;
+}
+
+.back-btn[hidden] { display: none; }
+.back-btn > span:first-child { color: var(--coral-dark); font-size: 16px; line-height: 1; }
+.back-btn:hover { border-color: var(--coral); background: rgba(255, 255, 255, 0.92); }
+.back-btn:active { transform: translateY(2px); box-shadow: none; }
+.back-btn:focus-visible { outline: 3px solid rgba(57, 149, 109, 0.3); outline-offset: 2px; }
+

@@ -20,7 +20,7 @@ export class KeyboardInput {
         if (event.key === 'Escape') { event.preventDefault(); this.ui.startScreen.closeMode(); }
         return;
       }
-      if (this.api.isStartScreenActive()) return;
+      if (!this.api.isGameplayActive()) return;
       if (!this.ui.gameOver.overlay.hidden) {
         if (event.key === 'Tab' || event.key === 'Escape') { event.preventDefault(); this.ui.gameOver.playAgain.focus(); }
         return;

@@ -14,6 +14,13 @@ export const ClawState = Object.freeze({
   GAME_OVER: 'game-over',
 });
 
+export const AppState = Object.freeze({
+  MENU: 'menu',
+  PLAYING: 'playing',
+  PAUSED: 'paused',
+  GAME_OVER: 'game-over',
+});
+
 export const PokemonState = Object.freeze({
   IDLE: 'idle',
   GRABBED: 'grabbed',
@@ -30,7 +37,7 @@ export class GameState {
     this.trainerXp = trainerXp;
     this.mode = mode;
     this.pokedexCounts = pokedexCounts;
-    this.startScreenActive = true;
+    this.appState = AppState.MENU;
     this.prizes = [];
     this.particles = [];
     this.lastTime = 0;

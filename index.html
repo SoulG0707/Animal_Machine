@@ -83,12 +83,29 @@
       </section>
     </div>
 
+    <div class="back-confirm-modal" id="back-confirm-modal" aria-hidden="true" hidden>
+      <section class="back-confirm-dialog" role="dialog" aria-modal="true" aria-labelledby="back-confirm-title" aria-describedby="back-confirm-copy">
+        <p class="eyebrow">CURRENT SESSION</p>
+        <h2 id="back-confirm-title">QUAY VỀ MENU?</h2>
+        <p id="back-confirm-copy">Tiến trình ván hiện tại<br />sẽ không được lưu.</p>
+        <div class="back-confirm-actions">
+          <button class="back-stay-btn" id="back-stay-btn" type="button">TIẾP TỤC CHƠI</button>
+          <button class="back-leave-btn" id="back-leave-btn" type="button">VỀ MENU</button>
+        </div>
+      </section>
+    </div>
+
     <main class="app-shell" id="top" aria-hidden="true" inert>
       <header class="topbar">
-        <a class="brand" href="#top" aria-label="Pokémon Machine, về đầu trang">
-          <span class="brand-mark" aria-hidden="true"></span>
-          <span>POKÉMON<br />MACHINE</span>
-        </a>
+        <div class="topbar-start">
+          <button class="back-btn" id="back-to-menu-btn" type="button" aria-label="Quay lại menu" hidden>
+            <span aria-hidden="true">←</span><span class="back-btn-label">BACK</span>
+          </button>
+          <a class="brand" href="#top" aria-label="Pokémon Machine, về đầu trang">
+            <span class="brand-mark" aria-hidden="true"></span>
+            <span>POKÉMON<br />MACHINE</span>
+          </a>
+        </div>
         <div class="header-note"><span class="status-dot" aria-hidden="true"></span><span class="status-copy">TRAINER MODE</span><span class="trainer-level" id="trainer-level" title="Trainer experience">LV 1</span></div>
         <div class="high-score"><span>BEST</span><strong id="best-score">000</strong></div>
       </header>

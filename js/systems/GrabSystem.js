@@ -1,6 +1,6 @@
 import { ANIMATION, ENCOURAGING_MESSAGES, MACHINE, TEASING_MESSAGES } from '../config/gameConfig.js';
 import { TEASING_MESSAGE_CHANCE } from '../config/difficultyConfig.js';
-import { ClawState, PokemonState } from '../core/GameState.js';
+import { AppState, ClawState, PokemonState } from '../core/GameState.js';
 import { easeInOut, moveTowards } from '../utils/math.js';
 import { randomBetween } from '../utils/random.js';
 
@@ -43,7 +43,7 @@ export class GrabSystem {
   }
 
   attempt() {
-    if (this.state.startScreenActive || this.claw.state !== ClawState.READY || this.state.turns <= 0) return false;
+    if (this.state.appState !== AppState.PLAYING || this.claw.state !== ClawState.READY || this.state.turns <= 0) return false;
     this.state.heldDirection = 0;
     this.state.grabAttemptId += 1;
     this.state.turns -= 1;

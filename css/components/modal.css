@@ -18,7 +18,7 @@ body.start-screen-open { overflow: hidden; }
     var(--bg);
 }
 
-.start-screen[hidden], .mode-modal[hidden] { display: none; }
+.start-screen[hidden], .mode-modal[hidden], .back-confirm-modal[hidden] { display: none; }
 
 .start-shell {
   display: grid;
@@ -212,6 +212,47 @@ body.start-screen-open { overflow: hidden; }
 .mode-dialog-actions button { min-height: 43px; border-radius: 7px; font: 700 10px 'DM Mono', monospace; letter-spacing: .06em; cursor: pointer; }
 .mode-cancel-btn { border: 1px solid rgba(255,252,243,.26); color: var(--surface); background: transparent; }
 .mode-confirm-btn { border: 0; color: var(--ink); background: var(--yellow); box-shadow: 0 3px 0 #ca9f25; }
+
+/* Return-to-menu confirmation */
+.back-confirm-modal {
+  position: fixed;
+  z-index: 120;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: rgba(29, 43, 43, 0.58);
+  backdrop-filter: blur(4px);
+  animation: modal-fade-in 180ms ease-out both;
+}
+
+.back-confirm-dialog {
+  width: min(100%, 400px);
+  padding: 23px;
+  border: 3px solid var(--yellow);
+  border-radius: 14px;
+  color: var(--surface);
+  background: var(--ink);
+  box-shadow: 7px 8px 0 rgba(15, 28, 31, 0.24);
+  text-align: center;
+  animation: modal-rise-in 200ms ease-out both;
+}
+
+.back-confirm-dialog .eyebrow { margin-bottom: 7px; color: #f8d698; }
+.back-confirm-dialog h2 { margin: 0; font-size: 26px; }
+.back-confirm-dialog > p:last-of-type { margin: 12px 0 0; color: #d9d8ce; font-size: 14px; line-height: 1.5; }
+.back-confirm-actions { display: grid; grid-template-columns: 1.25fr 1fr; gap: 9px; margin-top: 20px; }
+.back-confirm-actions button {
+  min-height: 43px;
+  border-radius: 7px;
+  font: 700 10px 'DM Mono', monospace;
+  letter-spacing: 0.05em;
+  cursor: pointer;
+}
+.back-stay-btn { border: 0; color: var(--ink); background: var(--yellow); box-shadow: 0 3px 0 #ca9f25; }
+.back-leave-btn { border: 1px solid rgba(255, 252, 243, 0.28); color: var(--surface); background: transparent; }
+.back-confirm-actions button:active { transform: translateY(2px); box-shadow: none; }
+.back-confirm-actions button:focus-visible { outline: 3px solid rgba(255, 211, 66, 0.3); outline-offset: 2px; }
 
 /* Game complete modal */
 .canvas-frame.is-game-over::after {

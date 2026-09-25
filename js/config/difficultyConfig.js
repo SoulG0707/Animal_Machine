@@ -1,7 +1,7 @@
 export const DIFFICULTY_SETTINGS = Object.freeze({
-  easy: Object.freeze({ label: 'DỄ', gripMissMin: 0.05, gripMissMax: 0.12 }),
-  medium: Object.freeze({ label: 'VỪA', gripMissMin: 0.10, gripMissMax: 0.22 }),
-  hard: Object.freeze({ label: 'KHÓ', gripMissMin: 0.18, gripMissMax: 0.35 }),
+  easy: Object.freeze({ label: 'DỄ', gripMissMin: 0.05, gripMissMax: 0.3 }),
+  medium: Object.freeze({ label: 'VỪA', gripMissMin: 0.3, gripMissMax: 0.5 }),
+  hard: Object.freeze({ label: 'KHÓ', gripMissMin: 0.5, gripMissMax: 0.9 }),
 });
 
 export const DEFAULT_DIFFICULTY = 'medium';

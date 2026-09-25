@@ -26,6 +26,9 @@
   .mode-dialog h2 { margin-bottom: 13px; font-size: 24px; }
   .mode-option { padding: 9px 10px; }
   .mode-option small { font-size: 11px; }
+  .back-confirm-dialog { padding: 19px 16px; }
+  .back-confirm-dialog h2 { font-size: 23px; }
+  .back-confirm-actions { grid-template-columns: 1fr; }
 
   .app-shell {
     width: 100%;
@@ -39,6 +42,9 @@
   }
 
   .topbar { min-height: 48px; padding-bottom: 8px; }
+  .topbar-start { gap: 7px; }
+  .back-btn { min-width: 34px; min-height: 32px; padding: 0 7px; }
+  .back-btn-label { display: none; }
   .brand { gap: 8px; font-size: 11px; }
   .brand-mark { width: 30px; height: 30px; border-radius: 50%; }
   .header-note { gap: 0; }
