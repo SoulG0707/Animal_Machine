@@ -33,6 +33,19 @@ const missionProgressText = document.querySelector('#mission-progress');
 const missionState = document.querySelector('#mission-state');
 const missionFill = document.querySelector('#mission-fill');
 const trainerLevelElement = document.querySelector('#trainer-level');
+const appShell = document.querySelector('.app-shell');
+const startScreen = document.querySelector('#start-screen');
+const startGameButton = document.querySelector('#start-game-btn');
+const openModeButton = document.querySelector('#open-mode-btn');
+const resetDataButton = document.querySelector('#reset-data-btn');
+const startModeBadge = document.querySelector('#start-mode-badge');
+const startCurrentMode = document.querySelector('#start-current-mode');
+const startBest = document.querySelector('#start-best');
+const startLevel = document.querySelector('#start-level');
+const modeModal = document.querySelector('#mode-modal');
+const modeCancelButton = document.querySelector('#mode-cancel-btn');
+const modeConfirmButton = document.querySelector('#mode-confirm-btn');
+const modeInputs = Array.from(document.querySelectorAll('input[name="game-mode"]'));
 
 const machine = { width: canvas.width, height: canvas.height, floorY: 545 };
 const GameState = Object.freeze({
@@ -56,8 +69,11 @@ const PokemonState = Object.freeze({
   DROPPING_TO_CHUTE: 'dropping-to-chute',
   CAUGHT: 'caught',
 });
-const GRIP_MISS_MIN = 0.4;
-const GRIP_MISS_MAX = 0.9;
+const MODE_SETTINGS = Object.freeze({
+  easy: Object.freeze({ label: 'DỄ', gripMissMin: 0.05, gripMissMax: 0.12 }),
+  medium: Object.freeze({ label: 'VỪA', gripMissMin: 0.10, gripMissMax: 0.22 }),
+  hard: Object.freeze({ label: 'KHÓ', gripMissMin: 0.18, gripMissMax: 0.35 }),
+});
 const TEASING_MESSAGE_CHANCE = 0.9;
 const PHYSICS = Object.freeze({
   gravity: 1080,
@@ -101,6 +117,7 @@ const STORAGE_KEYS = {
   best: 'animal-machine-best',
   collection: 'pokemon-machine-pokedex',
   trainerXp: 'pokemon-machine-trainer-xp',
+  mode: 'pokemon-machine-mode',
 };
 const characterAssets = [
   { name: 'Pikachu', path: 'character/Pikachu.svg', score: 50, rarity: 'epic' },
@@ -277,6 +294,9 @@ let score = 0;
 let turns = 5;
 let bestScore = readStoredNumber(STORAGE_KEYS.best);
 let trainerXp = readStoredNumber(STORAGE_KEYS.trainerXp);
+const storedMode = readStorageItem(STORAGE_KEYS.mode);
+let currentMode = Object.prototype.hasOwnProperty.call(MODE_SETTINGS, storedMode) ? storedMode : 'medium';
+let startScreenActive = true;
 let lastTime = 0;
 let statusTimer;
 let messageTimer;
@@ -307,6 +327,62 @@ function refreshTrainerLevel() {
   const level = trainerLevel();
   trainerLevelElement.textContent = 'LV ' + level;
   trainerLevelElement.title = trainerXp + ' XP · ' + (EXPERIENCE_PER_LEVEL - (trainerXp % EXPERIENCE_PER_LEVEL)) + ' XP to next level';
+}
+
+function updateStartScreenStats() {
+  const mode = MODE_SETTINGS[currentMode];
+  startModeBadge.textContent = mode.label;
+  startCurrentMode.textContent = mode.label;
+  startBest.textContent = String(bestScore).padStart(3, '0');
+  startLevel.textContent = String(trainerLevel());
+}
+
+function openModeModal() {
+  const selectedInput = modeInputs.find((input) => input.value === currentMode) || modeInputs[1];
+  selectedInput.checked = true;
+  modeModal.hidden = false;
+  modeModal.setAttribute('aria-hidden', 'false');
+  selectedInput.focus({ preventScroll: true });
+}
+
+function closeModeModal() {
+  modeModal.hidden = true;
+  modeModal.setAttribute('aria-hidden', 'true');
+  openModeButton.focus({ preventScroll: true });
+}
+
+function confirmModeSelection() {
+  const selectedInput = modeInputs.find((input) => input.checked);
+  if (!selectedInput || !Object.prototype.hasOwnProperty.call(MODE_SETTINGS, selectedInput.value)) return;
+  currentMode = selectedInput.value;
+  writeStorageItem(STORAGE_KEYS.mode, currentMode);
+  updateStartScreenStats();
+  closeModeModal();
+}
+
+function resetAllSavedData() {
+  const confirmed = window.confirm('Bạn có chắc muốn reset toàn bộ dữ liệu không?');
+  if (!confirmed) return;
+  try { localStorage.clear(); } catch { /* Storage can be disabled by the browser. */ }
+  bestScore = 0;
+  trainerXp = 0;
+  currentMode = 'medium';
+  Object.keys(pokedexCounts).forEach((name) => { pokedexCounts[name] = 0; });
+  resetGame();
+  refreshTrainerLevel();
+  updateStartScreenStats();
+}
+
+function enterGame() {
+  startScreenActive = false;
+  startScreen.hidden = true;
+  startScreen.setAttribute('aria-hidden', 'true');
+  appShell.inert = false;
+  appShell.removeAttribute('inert');
+  appShell.setAttribute('aria-hidden', 'false');
+  document.body.classList.remove('start-screen-open');
+  resetGame();
+  dropButton.focus({ preventScroll: true });
 }
 
 function showStatus(message, duration = 1500) {
@@ -1282,7 +1358,11 @@ function updateClawAnimation(time, elapsed) {
       if (prize) {
         nudgePileAtClaw(prize);
         const perfect = Math.abs(prize.centerX - claw.x) <= 14;
-        const gripMissChance = randomBetween(GRIP_MISS_MIN, GRIP_MISS_MAX) * (perfect ? 0.6 : 1);
+        const modeSettings = MODE_SETTINGS[currentMode];
+        const gripMissChance = randomBetween(
+          modeSettings.gripMissMin,
+          modeSettings.gripMissMax,
+        ) * (perfect ? 0.6 : 1);
         const willSlip = Math.random() < gripMissChance;
         const slipDuringCarry = willSlip && Math.random() < 0.3;
         const slipProgress = willSlip ? randomBetween(0.25, 0.65) : null;
@@ -1558,8 +1638,8 @@ function processCatch(grab) {
   return pointsEarned < 0 ? 'PENALTY ' + pointsEarned : formatPoints(pointsEarned) + ' POINTS';
 }
 
-function dropClaw() {
-  if (claw.state !== GameState.READY || turns <= 0) return;
+function attemptGrab() {
+  if (startScreenActive || claw.state !== GameState.READY || turns <= 0) return;
   stopMoving();
   grabAttemptId += 1;
   turns -= 1;
@@ -1659,16 +1739,22 @@ function stopMoving() {
 
 dropButton.addEventListener('pointerdown', (event) => {
   event.preventDefault();
-  if (claw.state !== GameState.READY || turns <= 0) return;
+  if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0)) return;
   dropButton.classList.add('is-pressed');
-  if (dropButton.setPointerCapture) dropButton.setPointerCapture(event.pointerId);
+  attemptGrab();
 });
 dropButton.addEventListener('pointerup', () => dropButton.classList.remove('is-pressed'));
 dropButton.addEventListener('pointercancel', () => dropButton.classList.remove('is-pressed'));
-dropButton.addEventListener('lostpointercapture', () => dropButton.classList.remove('is-pressed'));
-dropButton.addEventListener('click', dropClaw);
 ['contextmenu', 'dragstart', 'selectstart'].forEach((eventName) => {
   controlActions.addEventListener(eventName, (event) => event.preventDefault());
+});
+startGameButton.addEventListener('click', enterGame);
+openModeButton.addEventListener('click', openModeModal);
+resetDataButton.addEventListener('click', resetAllSavedData);
+modeCancelButton.addEventListener('click', closeModeModal);
+modeConfirmButton.addEventListener('click', confirmModeSelection);
+modeModal.addEventListener('pointerdown', (event) => {
+  if (event.target === modeModal) closeModeModal();
 });
 document.querySelector('#reset-btn').addEventListener('click', resetGame);
 playAgainButton.addEventListener('click', () => {
@@ -1681,6 +1767,14 @@ function isEditableTarget(target) {
 }
 
 document.addEventListener('keydown', (event) => {
+  if (!modeModal.hidden) {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeModeModal();
+    }
+    return;
+  }
+  if (startScreenActive) return;
   if (!gameCompleteOverlay.hidden) {
     if (event.key === 'Tab' || event.key === 'Escape') {
       event.preventDefault();
@@ -1701,11 +1795,19 @@ document.addEventListener('keydown', (event) => {
     rightButton.classList.add('is-pressed');
     startMoving(1);
   }
-  if (event.code === 'Space' && !event.repeat && !(event.target instanceof Element && event.target.closest('button, a'))) {
+  const focusedControl = event.target instanceof Element && event.target.closest('button, a');
+  if (event.code === 'Space' && !event.repeat && (!focusedControl || dropButton.contains(event.target))) {
     event.preventDefault();
     dropButton.classList.add('is-pressed');
-    dropClaw();
+    attemptGrab();
   }
+});
+
+dropButton.addEventListener('keydown', (event) => {
+  if (event.key !== 'Enter' || event.repeat) return;
+  event.preventDefault();
+  dropButton.classList.add('is-pressed');
+  attemptGrab();
 });
 
 document.addEventListener('keyup', (event) => {
@@ -1724,5 +1826,7 @@ startMission();
 updatePokedex();
 refreshTrainerLevel();
 updateHud();
+updateStartScreenStats();
+document.body.classList.add('start-screen-open');
 showStatus('READY');
 requestAnimationFrame(render);

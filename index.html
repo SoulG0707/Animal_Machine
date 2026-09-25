@@ -2,7 +2,7 @@
 <html lang="vi">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f0f2ea" />
     <link rel="icon" type="image/svg+xml" href="character/Pikachu.svg" />
     <title>Pokémon Prize Machine · Animal Machine</title>
@@ -12,7 +12,78 @@
     <link rel="stylesheet" href="style.css" />
   </head>
   <body>
-    <main class="app-shell" id="top">
+    <section class="start-screen" id="start-screen" aria-labelledby="start-title">
+      <div class="start-shell">
+        <header class="start-header">
+          <div class="start-brand" aria-label="Pokémon Machine">
+            <span class="brand-mark" aria-hidden="true"></span>
+            <span>POKÉMON<br />MACHINE</span>
+          </div>
+          <div class="start-stats" aria-label="Trainer progress">
+            <span>LV <strong id="start-level">1</strong></span>
+            <span>BEST <strong id="start-best">000</strong></span>
+          </div>
+        </header>
+
+        <div class="start-content">
+          <div class="start-heading">
+            <p class="eyebrow">TRAINER'S PRIZE CABINET</p>
+            <h1 id="start-title">POKÉMON <em>MACHINE</em></h1>
+            <p>Catch your favorite.</p>
+          </div>
+
+          <div class="start-machine-preview" aria-label="Máy gắp Pokémon minh họa">
+            <div class="preview-lights" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+            <div class="preview-top"><span>AM / TRAINER CLUB</span><span>★ ★ ★</span></div>
+            <div class="preview-glass">
+              <span class="preview-rail" aria-hidden="true"></span>
+              <span class="preview-claw" aria-hidden="true"><i></i></span>
+              <img class="preview-pokemon preview-pikachu" src="character/Pikachu.svg" alt="" />
+              <img class="preview-pokemon preview-bulbasaur" src="character/Bulbasaur.svg" alt="" />
+              <img class="preview-pokemon preview-charmander" src="character/Charmander.svg" alt="" />
+              <img class="preview-pokemon preview-mewtwo" src="character/Mewtwo.svg" alt="" />
+              <span class="preview-chute" aria-hidden="true">PRIZE</span>
+            </div>
+            <div class="preview-controls" aria-hidden="true"><i></i><span>◀ &nbsp; GRAB &nbsp; ▶</span><i></i></div>
+          </div>
+
+          <div class="start-actions">
+            <button class="start-btn start-btn-primary" id="start-game-btn" type="button">BẮT ĐẦU <span aria-hidden="true">▶</span></button>
+            <button class="start-btn start-btn-mode" id="open-mode-btn" type="button">CHẾ ĐỘ <span id="start-mode-badge">VỪA</span></button>
+            <button class="start-btn start-btn-reset" id="reset-data-btn" type="button">RESET <span aria-hidden="true">↻</span></button>
+          </div>
+
+          <p class="start-current-mode">CHẾ ĐỘ HIỆN TẠI <strong id="start-current-mode">VỪA</strong></p>
+        </div>
+      </div>
+    </section>
+
+    <div class="mode-modal" id="mode-modal" aria-hidden="true" hidden>
+      <section class="mode-dialog" role="dialog" aria-modal="true" aria-labelledby="mode-title">
+        <p class="eyebrow">CLAW SETTINGS</p>
+        <h2 id="mode-title">CHẾ ĐỘ</h2>
+        <div class="mode-options" role="radiogroup" aria-label="Chọn độ khó">
+          <label class="mode-option">
+            <input type="radio" name="game-mode" value="easy" />
+            <span><strong>DỄ</strong><small>Càng chắc hơn · Ít bị tuột</small></span>
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="game-mode" value="medium" />
+            <span><strong>VỪA</strong><small>Cân bằng · Tỉ lệ tuột trung bình</small></span>
+          </label>
+          <label class="mode-option">
+            <input type="radio" name="game-mode" value="hard" />
+            <span><strong>KHÓ</strong><small>Càng lỏng hơn · Thử thách cao</small></span>
+          </label>
+        </div>
+        <div class="mode-dialog-actions">
+          <button class="mode-cancel-btn" id="mode-cancel-btn" type="button">HỦY</button>
+          <button class="mode-confirm-btn" id="mode-confirm-btn" type="button">XÁC NHẬN</button>
+        </div>
+      </section>
+    </div>
+
+    <main class="app-shell" id="top" aria-hidden="true" inert>
       <header class="topbar">
         <a class="brand" href="#top" aria-label="Pokémon Machine, về đầu trang">
           <span class="brand-mark" aria-hidden="true"></span>
