@@ -39,33 +39,58 @@ const GameState = Object.freeze({
   CLOSING: 'closing',
   LIFTING: 'lifting',
   CARRYING: 'carrying',
-  DROPPING: 'dropping',
+  RELEASING: 'releasing',
+  WAITING_FOR_CHUTE: 'waiting-for-chute',
+  SLIPPING: 'slipping',
   RETURNING: 'returning',
   GAME_OVER: 'game-over',
 });
-const claw = {
-  x: 350,
-  y: 76,
-  width: 58,
-  height: 28,
-  targetY: 76,
-  state: GameState.READY,
-  caught: null,
-  currentGrab: null,
-  openAmount: 1,
-  phaseElapsed: 0,
-  returnX: 350,
-  carryOffsetX: 0,
-  carryOffsetY: 0,
-  grabStartedAt: 0,
-};
+const PokemonState = Object.freeze({
+  IDLE: 'idle',
+  GRABBED: 'grabbed',
+  FALLING: 'falling',
+  SETTLING: 'settling',
+  DROPPING_TO_CHUTE: 'dropping-to-chute',
+  CAUGHT: 'caught',
+});
+const GRIP_MISS_MIN = 0.3;
+const GRIP_MISS_MAX = 0.9;
+const PHYSICS = Object.freeze({
+  gravity: 1080,
+  restitution: 0.12,
+  wallRestitution: 0.16,
+  floorFriction: 0.86,
+  airFriction: 0.994,
+  angularDamping: 0.975,
+  maxAngularVelocity: 1.35,
+  sleepSpeed: 7,
+  sleepAngularSpeed: 0.09,
+  sleepDelay: 720,
+  solverIterations: 4,
+  maxStep: 1 / 90,
+});
+const GRAVITY = PHYSICS.gravity;
+const CHUTE_PHYSICS_TIME_SCALE = 1;
+const encouragingMessages = [
+  'Cố lên! Sắp gắp được {name} rồi!',
+  'Suýt nữa thì có {name}!',
+  'Một chút nữa thôi!',
+  'Cố thêm lần nữa nào!',
+  '{name} vẫn đang chờ bạn đấy!',
+  'Gần lắm rồi!',
+  'Thêm phát nữa là được!',
+];
+const teasingMessages = [
+  'Ui, có thế cũng hụt à, gà thế!',
+  'Ơ kìa, tới miệng còn rớt!',
+  'Càng gắp phản chủ rồi!',
+  'Ủa alo? Rớt thật luôn!',
+  '{name}: bắt được tôi còn lâu nhé!',
+];
 const CLAW_SCALE = 0.84;
 const PRIZE_SCALE = 0.8;
 const CLAW_LANE_BOTTOM = 136;
 const PRIZE_AREA_PADDING = 12;
-const PRIZE_MIN_GAP = 12;
-const PRIZE_POSITION_ATTEMPTS = 1000;
-const PRIZE_ARRANGEMENT_RESTARTS = 40;
 const SHINY_CHANCE = 0.018;
 const EXPERIENCE_PER_LEVEL = 250;
 const STORAGE_KEYS = {
@@ -111,23 +136,88 @@ const prizeBounds = {
   bottom: machine.floorY - PRIZE_AREA_PADDING,
 };
 const prizeChute = {
-  x: 56,
-  width: 112,
-  centerX: 112,
-  opening: {
+  x: 38,
+  width: 148,
+  mouth: {
+    x: 52,
+    y: machine.floorY - 16,
+    width: 120,
+    height: 16,
+  },
+  tunnel: {
+    x: 52,
+    y: machine.floorY - 16,
+    width: 120,
+    bottom: machine.height - 38,
+  },
+  sensor: {
     x: 64,
-    y: machine.floorY + 7,
+    y: machine.height - 54,
     width: 96,
-    bottom: machine.height - 30,
+    height: 10,
+  },
+  walls: {
+    left: {
+      x: 38,
+      y: machine.floorY - 24,
+      width: 14,
+      height: machine.height - machine.floorY + 12,
+    },
+    right: {
+      x: 172,
+      y: machine.floorY - 24,
+      width: 14,
+      height: machine.height - machine.floorY + 12,
+    },
+    leftLip: {
+      x: 30,
+      y: machine.floorY - 24,
+      width: 22,
+      height: 10,
+    },
+    rightLip: {
+      x: 172,
+      y: machine.floorY - 24,
+      width: 22,
+      height: 10,
+    },
+  },
+  divider: {
+    x: 186,
+    y: machine.floorY - 160,
+    width: 18,
+    height: 160,
   },
   exclusion: {
-    x: 40,
-    y: machine.floorY - 82,
-    width: 144,
-    height: machine.height - machine.floorY + 92,
+    x: 18,
+    y: machine.floorY - 160,
+    width: 186,
+    height: 172,
   },
-  landingBottom: machine.height - 34,
   flash: 0,
+};
+const chuteCenterX = prizeChute.mouth.x + prizeChute.mouth.width / 2;
+const CLAW_HOME_X = chuteCenterX;
+const CLAW_HOME_Y = 76;
+const claw = {
+  x: CLAW_HOME_X,
+  y: CLAW_HOME_Y,
+  homeX: CLAW_HOME_X,
+  homeY: CLAW_HOME_Y,
+  width: 58,
+  height: 28,
+  targetY: CLAW_HOME_Y,
+  state: GameState.READY,
+  caught: null,
+  currentGrab: null,
+  openAmount: 1,
+  phaseElapsed: 0,
+  carryOffsetX: 0,
+  grabOffsetX: 0,
+  carryOffsetY: 0,
+  grabStartedAt: 0,
+  droppingPrize: null,
+  dropGrab: null,
 };
 const ANIMATION = {
   descendSpeed: 500,
@@ -135,11 +225,9 @@ const ANIMATION = {
   carrySpeed: 430,
   returnSpeed: 440,
   closeDuration: 180,
+  slipLoosenDuration: 110,
   dropOpenDuration: 140,
-  dropDuration: 380,
-  bounceDuration: 150,
-  fadeDuration: 110,
-  carryY: CLAW_LANE_BOTTOM - 18,
+  chuteFadeDuration: 240,
 };
 const characterCards = new Map();
 
@@ -198,6 +286,7 @@ let sessionCaughtSpecies = new Set();
 let selectedCharacter = characterAssets[0];
 let mission = null;
 let particles = [];
+let grabAttemptId = 0;
 const pokedexCounts = loadCollection();
 
 function formatPoints(points) {
@@ -356,72 +445,99 @@ function shuffledCharacters() {
   return shuffled;
 }
 
-function positionsOverlap(candidate, existing) {
-  const separatedOnX = candidate.x + candidate.width + PRIZE_MIN_GAP <= existing.x
-    || existing.x + existing.width + PRIZE_MIN_GAP <= candidate.x;
-  const separatedOnY = candidate.y + candidate.height + PRIZE_MIN_GAP <= existing.y
-    || existing.y + existing.height + PRIZE_MIN_GAP <= candidate.y;
-  return !separatedOnX && !separatedOnY;
+function circleIntersectsRect(centerX, centerY, radius, rectangle, padding = 0) {
+  const left = rectangle.x - padding;
+  const right = rectangle.x + rectangle.width + padding;
+  const top = rectangle.y - padding;
+  const bottom = rectangle.y + rectangle.height + padding;
+  const closestX = Math.max(left, Math.min(centerX, right));
+  const closestY = Math.max(top, Math.min(centerY, bottom));
+  return Math.hypot(centerX - closestX, centerY - closestY) < radius;
 }
 
-function isValidPrizePosition(candidate, placed) {
-  if (candidate.x < prizeBounds.left || candidate.y < prizeBounds.top) return false;
-  if (candidate.x + candidate.width > prizeBounds.right || candidate.y + candidate.height > prizeBounds.bottom) return false;
-  if (positionsOverlap(candidate, prizeChute.exclusion)) return false;
-  return placed.every((prize) => !positionsOverlap(candidate, prize));
-}
-
-function findRandomPosition(character, placed, attempts = PRIZE_POSITION_ATTEMPTS) {
-  const dimensions = getSpriteDimensions(character);
-  const maxX = prizeBounds.right - dimensions.width;
-  const maxY = prizeBounds.bottom - dimensions.height;
-  if (maxX < prizeBounds.left || maxY < prizeBounds.top) return null;
-
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    const candidate = {
-      x: prizeBounds.left + Math.random() * (maxX - prizeBounds.left),
-      y: prizeBounds.top + Math.random() * (maxY - prizeBounds.top),
-      width: dimensions.width,
-      height: dimensions.height,
-    };
-    if (isValidPrizePosition(candidate, placed)) return candidate;
+function findInitialPrizePosition(dimensions, radius, placed) {
+  const minimumY = machine.floorY - 218;
+  const maximumY = machine.floorY - dimensions.height - 6;
+  for (let attempt = 0; attempt < 1200; attempt += 1) {
+    const x = randomBetween(prizeBounds.left + 4, prizeBounds.right - dimensions.width - 4);
+    const y = randomBetween(minimumY, maximumY);
+    const centerX = x + dimensions.width / 2;
+    const centerY = y + dimensions.height / 2;
+    if (circleIntersectsRect(centerX, centerY, radius, prizeChute.exclusion, 8)) continue;
+    const overlapsPrize = placed.some((other) => (
+      Math.hypot(centerX - other.centerX, centerY - other.centerY)
+      < (radius + other.bodyRadius) * 0.9
+    ));
+    if (!overlapsPrize) return { x, y, centerX, centerY };
   }
-  return null;
+
+  const safeLeft = prizeChute.exclusion.x + prizeChute.exclusion.width + 8;
+  const usableWidth = prizeBounds.right - safeLeft;
+  const column = placed.length % 7;
+  const row = Math.floor(placed.length / 7);
+  const x = Math.min(
+    prizeBounds.right - dimensions.width,
+    safeLeft + 8 + column * (usableWidth - dimensions.width) / 6,
+  );
+  const y = machine.floorY - dimensions.height - 12 - row * 68;
+  return { x, y, centerX: x + dimensions.width / 2, centerY: y + dimensions.height / 2 };
 }
 
-function generateRandomArrangement(restarts = PRIZE_ARRANGEMENT_RESTARTS, attempts = PRIZE_POSITION_ATTEMPTS) {
-  for (let restart = 0; restart < restarts; restart += 1) {
-    const placed = [];
-    let complete = true;
-    for (const character of shuffledCharacters()) {
-      const position = findRandomPosition(character, placed, attempts);
-      if (!position) {
-        complete = false;
-        break;
-      }
-      placed.push({ ...position, character });
-    }
-    if (complete && placed.length === characterAssets.length) return placed;
+function settleInitialPrizes() {
+  const maximumFrames = 480;
+  for (let frame = 0; frame < maximumFrames; frame += 1) {
+    updatePrizePhysics(16);
+    if (frame > 120 && prizes.every((prize) => prize.isSleeping)) break;
   }
-  return null;
+  prizes.forEach((prize) => {
+    prize.velocityX = 0;
+    prize.velocityY = 0;
+    prize.angularVelocity = 0;
+    prize.sleepTimer = PHYSICS.sleepDelay;
+    prize.isSleeping = true;
+    prize.state = PokemonState.IDLE;
+  });
 }
 
 function createPrizes() {
-  let arrangement = generateRandomArrangement();
-  if (!arrangement) arrangement = generateRandomArrangement(24, 12000);
-  if (!arrangement) {
-    throw new Error('Could not create a non-overlapping random Pokémon layout inside the prize area.');
-  }
-  prizes = arrangement.map((pokemon, index) => ({
-    ...pokemon,
-    centerX: pokemon.x + pokemon.width / 2,
-    centerY: pokemon.y + pokemon.height / 2,
-    bottomY: pokemon.y + pokemon.height,
-    color: fallbackColors[index % fallbackColors.length],
-    name: pokemon.character.name,
-    collected: false,
-    shiny: Math.random() < SHINY_CHANCE,
-  }));
+  const placed = [];
+  prizes = shuffledCharacters().map((character, index) => {
+    const dimensions = getSpriteDimensions(character);
+    const radius = Math.max(22, Math.max(dimensions.width, dimensions.height) * 0.42);
+    const position = findInitialPrizePosition(dimensions, radius, placed);
+    const prize = {
+      character,
+      x: position.x,
+      y: position.y,
+      width: dimensions.width,
+      height: dimensions.height,
+      centerX: position.centerX,
+      centerY: position.centerY,
+      bottomY: position.y + dimensions.height,
+      color: fallbackColors[index % fallbackColors.length],
+      name: character.name,
+      collected: false,
+      state: PokemonState.IDLE,
+      velocityX: randomBetween(-8, 8),
+      velocityY: randomBetween(-3, 5),
+      rotation: randomBetween(-0.3, 0.3),
+      angularVelocity: randomBetween(-0.18, 0.18),
+      bodyRadius: radius,
+      mass: Math.max(0.7, dimensions.width * dimensions.height / 4200),
+      inverseMass: 0,
+      restitution: PHYSICS.restitution + randomBetween(-0.02, 0.025),
+      friction: PHYSICS.floorFriction + randomBetween(-0.025, 0.025),
+      isSleeping: false,
+      sleepTimer: 0,
+      touchingSurface: false,
+      bounceCount: 0,
+      shiny: Math.random() < SHINY_CHANCE,
+    };
+    placed.push(prize);
+    return prize;
+  });
+  prizes.forEach((prize) => { prize.inverseMass = 1 / prize.mass; });
+  settleInitialPrizes();
 }
 
 function drawBackground() {
@@ -450,39 +566,73 @@ function drawBackground() {
 
 function drawPrizeChute(elapsed) {
   prizeChute.flash = Math.max(0, prizeChute.flash - elapsed / 520);
-  const outerY = machine.floorY - 4;
-  const outerHeight = machine.height - outerY - 10;
+  const outerY = prizeChute.mouth.y - 8;
+  const outerBottom = machine.height - 12;
+  const tunnelHeight = prizeChute.tunnel.bottom - prizeChute.tunnel.y;
+  context.fillStyle = 'rgba(21, 34, 48, .2)';
+  context.fillRect(prizeChute.x - 7, outerY + 8, prizeChute.width + 14, outerBottom - outerY + 3);
+  const chuteDepth = context.createLinearGradient(0, prizeChute.tunnel.y, 0, prizeChute.tunnel.bottom);
+  chuteDepth.addColorStop(0, '#0c1725');
+  chuteDepth.addColorStop(0.65, '#172639');
+  chuteDepth.addColorStop(1, '#0a121d');
+  context.fillStyle = chuteDepth;
+  context.fillRect(prizeChute.tunnel.x, prizeChute.tunnel.y, prizeChute.tunnel.width, tunnelHeight);
+  context.fillStyle = 'rgba(255, 255, 255, .08)';
+  context.fillRect(prizeChute.tunnel.x + 7, prizeChute.tunnel.y + 6, prizeChute.tunnel.width - 14, 3);
+  context.fillStyle = '#1b2b3d';
+  context.fillRect(prizeChute.x + 6, prizeChute.sensor.y + 9, prizeChute.width - 12, outerBottom - prizeChute.sensor.y - 9);
+}
+
+function drawPrizeChuteForeground() {
+  const outerY = prizeChute.mouth.y - 8;
+  const outerBottom = machine.height - 12;
+
   context.fillStyle = '#243346';
-  context.fillRect(prizeChute.x, outerY, prizeChute.width, outerHeight);
-  context.fillStyle = '#fffcf3';
-  context.fillRect(prizeChute.x + 5, outerY + 5, prizeChute.width - 10, outerHeight - 10);
-  context.fillStyle = '#243346';
-  context.fillRect(prizeChute.opening.x - 3, prizeChute.opening.y - 3, prizeChute.opening.width + 6, prizeChute.opening.bottom - prizeChute.opening.y + 7);
-  context.fillStyle = '#101b2b';
-  context.fillRect(prizeChute.opening.x, prizeChute.opening.y, prizeChute.opening.width, prizeChute.opening.bottom - prizeChute.opening.y);
+  context.fillRect(prizeChute.walls.leftLip.x, prizeChute.walls.leftLip.y, prizeChute.walls.leftLip.width, prizeChute.walls.leftLip.height);
+  context.fillRect(prizeChute.walls.rightLip.x, prizeChute.walls.rightLip.y, prizeChute.walls.rightLip.width, prizeChute.walls.rightLip.height);
   context.fillStyle = '#e6464d';
-  context.fillRect(prizeChute.x, outerY, prizeChute.width, 6);
+  context.fillRect(prizeChute.walls.leftLip.x + 2, prizeChute.walls.leftLip.y + 2, prizeChute.walls.leftLip.width - 2, 4);
+  context.fillRect(prizeChute.walls.rightLip.x, prizeChute.walls.rightLip.y + 2, prizeChute.walls.rightLip.width - 2, 4);
+  context.fillStyle = '#ffd342';
+  context.fillRect(prizeChute.mouth.x, prizeChute.mouth.y - 3, 18, 3);
+  context.fillRect(prizeChute.mouth.x + prizeChute.mouth.width - 18, prizeChute.mouth.y - 3, 18, 3);
+
+  context.fillStyle = '#243346';
+  context.fillRect(prizeChute.walls.left.x, prizeChute.walls.left.y, prizeChute.walls.left.width, prizeChute.walls.left.height);
+  context.fillRect(prizeChute.walls.right.x, prizeChute.walls.right.y, prizeChute.walls.right.width, prizeChute.walls.right.height);
+  context.fillRect(prizeChute.x, prizeChute.sensor.y + 7, prizeChute.width, outerBottom - prizeChute.sensor.y - 7);
+  context.fillStyle = '#fffcf3';
+  context.fillRect(prizeChute.x + 5, outerY + 9, 4, outerBottom - outerY - 18);
+  context.fillRect(prizeChute.x + prizeChute.width - 9, outerY + 9, 4, outerBottom - outerY - 18);
+
+  const divider = prizeChute.divider;
+  context.fillStyle = 'rgba(184, 235, 238, .3)';
+  context.fillRect(divider.x, divider.y, divider.width, divider.height);
+  context.fillStyle = '#243346';
+  context.fillRect(divider.x, divider.y, 4, divider.height);
+  context.fillRect(divider.x + divider.width - 4, divider.y, 4, divider.height);
+  context.fillRect(divider.x - 2, divider.y - 5, divider.width + 4, 7);
+  context.fillStyle = '#fffcf3';
+  context.fillRect(divider.x + 5, divider.y + 7, 2, divider.height - 14);
+
   context.fillStyle = '#ffd342';
   context.font = 'bold 9px monospace';
   context.textAlign = 'center';
-  context.fillText('PRIZE', prizeChute.centerX, outerY + 16);
-  context.fillStyle = '#243346';
-  context.fillRect(prizeChute.x, prizeChute.opening.bottom + 2, prizeChute.width, machine.height - prizeChute.opening.bottom - 12);
+  context.fillText('PRIZE', chuteCenterX, prizeChute.sensor.y + 22);
+
   context.fillStyle = '#fffcf3';
   context.beginPath();
-  context.arc(prizeChute.centerX, prizeChute.opening.bottom + 12, 7, Math.PI, Math.PI * 2);
+  context.arc(chuteCenterX, outerBottom - 1, 7, Math.PI, Math.PI * 2);
   context.fill();
   context.fillStyle = '#e6464d';
-  context.fillRect(prizeChute.centerX - 7, prizeChute.opening.bottom + 12, 14, 2);
+  context.fillRect(chuteCenterX - 7, outerBottom - 1, 14, 2);
   context.fillStyle = '#243346';
-  context.fillRect(prizeChute.centerX - 1, prizeChute.opening.bottom + 10, 2, 5);
-  context.fillStyle = '#fffcf3';
-  context.fillRect(prizeChute.centerX - 3, prizeChute.opening.bottom + 10, 6, 2);
+  context.fillRect(chuteCenterX - 1, outerBottom - 3, 2, 5);
   if (prizeChute.flash > 0) {
     context.save();
     context.globalAlpha = prizeChute.flash * 0.62;
     context.fillStyle = '#ffd342';
-    context.fillRect(prizeChute.x - 3, outerY - 3, prizeChute.width + 6, 5);
+    context.fillRect(prizeChute.mouth.x, prizeChute.mouth.y - 5, prizeChute.mouth.width, 5);
     context.restore();
   }
 }
@@ -530,17 +680,11 @@ function drawSparkle(x, y, size, alpha) {
 }
 
 function drawPrize(prize, index, time) {
-  if (prize.collected || prize.isGrabbed) return;
+  const isChuteDrop = prize.state === PokemonState.DROPPING_TO_CHUTE
+    || (prize.state === PokemonState.CAUGHT && prize.dropPhase === 'sensor-confirmed');
+  if (prize.collected || prize.state === PokemonState.GRABBED) return;
   context.save();
-  if (prize.isDropping) {
-    context.beginPath();
-    context.rect(
-      prizeChute.opening.x,
-      prizeChute.opening.y,
-      prizeChute.opening.width,
-      prizeChute.opening.bottom - prizeChute.opening.y,
-    );
-    context.clip();
+  if (isChuteDrop) {
     context.globalAlpha = prize.dropAlpha;
   } else {
     const shadowY = Math.min(prize.bottomY, machine.floorY - 3);
@@ -557,14 +701,29 @@ function drawPrize(prize, index, time) {
     context.fillStyle = 'rgba(36, 51, 70, .14)';
     context.fillRect(prize.centerX - prize.width * 0.28, shadowY, prize.width * 0.56, 3);
   }
-  const scale = prize.isDropping ? prize.dropScale : 1;
+  const scale = isChuteDrop ? prize.dropScale : 1;
   const drawHeight = prize.height * scale;
   const drawWidth = prize.width * scale;
   const drawTop = prize.y + (prize.height - drawHeight) / 2;
   const drawCenterX = prize.centerX;
   const drawBottom = drawTop + drawHeight;
-  if (!drawCharacter(prize.character, drawCenterX, drawTop, 96 * PRIZE_SCALE * scale, drawBottom)) drawPixelPokeball(prize);
-  if (!prize.isDropping && prize.shiny) {
+  if (prize.character.loaded) {
+    const dimensions = getSpriteDimensions(prize.character);
+    context.save();
+    context.translate(drawCenterX, prize.centerY);
+    context.rotate(prize.rotation || 0);
+    context.drawImage(
+      prize.character.image,
+      -dimensions.width * scale / 2,
+      -dimensions.height * scale / 2,
+      dimensions.width * scale,
+      dimensions.height * scale,
+    );
+    context.restore();
+  } else if (!drawCharacter(prize.character, drawCenterX, drawTop, 96 * PRIZE_SCALE * scale, drawBottom)) {
+    drawPixelPokeball(prize);
+  }
+  if (!isChuteDrop && prize.shiny) {
     const phase = time / 450 + index * 1.73;
     drawSparkle(prize.centerX - 27 + Math.sin(phase) * 18, prize.centerY + Math.cos(phase * 0.9) * 16, 6, 0.55);
     drawSparkle(prize.centerX + 15 + Math.cos(phase * 0.8) * 18, prize.centerY + Math.sin(phase) * 20, 4, 0.38);
@@ -654,6 +813,10 @@ function moveTowards(current, target, maxStep) {
   return current + Math.sign(target - current) * maxStep;
 }
 
+function randomBetween(minimum, maximum) {
+  return minimum + Math.random() * (maximum - minimum);
+}
+
 function easeInOut(progress) {
   return progress * progress * (3 - 2 * progress);
 }
@@ -666,7 +829,7 @@ function updatePrizeGeometry(prize) {
 
 function updateCarriedPrize(time) {
   const prize = claw.currentGrab && claw.currentGrab.pokemon;
-  if (!prize || !prize.isGrabbed) return;
+  if (!prize || prize.state !== PokemonState.GRABBED) return;
   const sway = Math.sin((time - claw.grabStartedAt) * 0.008) * 2.5;
   prize.x = claw.x + claw.carryOffsetX + sway - prize.width / 2;
   prize.y = claw.y + claw.carryOffsetY;
@@ -674,63 +837,384 @@ function updateCarriedPrize(time) {
 }
 
 function beginPrizeDrop() {
-  claw.state = GameState.DROPPING;
+  const prize = claw.currentGrab && claw.currentGrab.pokemon;
+  if (!prize
+    || Math.abs(claw.x - claw.homeX) > 0.001
+    || Math.abs(claw.x - chuteCenterX) >= 2
+    || Math.abs(claw.x + claw.carryOffsetX - chuteCenterX) >= 2) return false;
+  claw.x = claw.homeX;
+  claw.state = GameState.RELEASING;
   claw.phaseElapsed = 0;
-  claw.dropPhase = 'opening';
   claw.openAmount = 0;
-  prizeChute.flash = 1;
-  showStatus('CAUGHT!', 1200);
+  showStatus('RELEASING...', 900);
+  return true;
 }
 
-function releasePrizeIntoChute(prize) {
-  prize.isGrabbed = false;
-  prize.isDropping = true;
+function releaseGrabbedPrize() {
+  const grab = claw.currentGrab;
+  if (!grab || !grab.pokemon) return false;
+  const prize = grab.pokemon;
+  const swayAngle = Math.sin((lastTime - claw.grabStartedAt) * 0.007) * 0.035;
+  prize.rotation = swayAngle;
+  updatePrizeGeometry(prize);
+  prize.state = PokemonState.DROPPING_TO_CHUTE;
   prize.dropPhase = 'falling';
   prize.dropElapsed = 0;
-  prize.dropStartY = prize.y;
-  prize.dropTargetY = prizeChute.landingBottom - prize.height;
   prize.dropAlpha = 1;
   prize.dropScale = 1;
+  prize.velocityX = 0;
+  prize.velocityY = 0;
+  prize.angularVelocity = randomBetween(-0.12, 0.12);
+  prize.chuteSensorTriggered = false;
+  prize.releaseX = prize.x;
+  prize.releaseY = prize.y;
+  prize.isSleeping = false;
+  prize.sleepTimer = 0;
+  claw.dropGrab = grab;
+  claw.droppingPrize = prize;
+  claw.currentGrab = null;
   claw.caught = null;
-  claw.dropPhase = 'falling';
   claw.phaseElapsed = 0;
+  claw.state = GameState.WAITING_FOR_CHUTE;
+  showStatus('DROPPING...', 1000);
+  return true;
 }
 
-function advancePrizeDrop(prize, elapsed) {
-  prize.dropElapsed += elapsed;
-  if (prize.dropPhase === 'falling') {
-    const progress = Math.min(prize.dropElapsed / ANIMATION.dropDuration, 1);
-    const gravityEase = progress * progress;
-    prize.y = prize.dropStartY + (prize.dropTargetY - prize.dropStartY) * gravityEase;
-    prize.dropScale = 1 - 0.035 * progress;
-    if (progress >= 1) {
-      prize.dropPhase = 'bounce';
+function updateChuteDropPhysics(prize, elapsed) {
+  const safeElapsed = Math.min(elapsed, 50) * CHUTE_PHYSICS_TIME_SCALE;
+  const totalSeconds = safeElapsed / 1000;
+  const substeps = Math.max(1, Math.min(5, Math.ceil(totalSeconds / PHYSICS.maxStep)));
+  const step = totalSeconds / substeps;
+  const result = { sensorTriggered: false, complete: false };
+  prize.dropElapsed += safeElapsed;
+
+  for (let substep = 0; substep < substeps; substep += 1) {
+    prize.velocityY += GRAVITY * step;
+    prize.x += prize.velocityX * step;
+    prize.y += prize.velocityY * step;
+    prize.rotation += prize.angularVelocity * step;
+    updatePrizeGeometry(prize);
+    resolveChuteWalls(prize);
+
+    const sensor = prizeChute.sensor;
+    const insideSensorX = prize.centerX >= sensor.x && prize.centerX <= sensor.x + sensor.width;
+    if (!prize.chuteSensorTriggered && insideSensorX && prize.bottomY >= sensor.y) {
+      prize.chuteSensorTriggered = true;
+      prize.state = PokemonState.CAUGHT;
+      prize.dropPhase = 'sensor-confirmed';
       prize.dropElapsed = 0;
-      prize.y = prize.dropTargetY;
-      prize.dropScale = 0.965;
-    }
-  } else if (prize.dropPhase === 'bounce') {
-    const progress = Math.min(prize.dropElapsed / ANIMATION.bounceDuration, 1);
-    prize.y = prize.dropTargetY - Math.sin(progress * Math.PI) * 6;
-    prize.dropScale = 0.965 + Math.sin(progress * Math.PI) * 0.035;
-    if (progress >= 1) {
-      prize.dropPhase = 'fade';
-      prize.dropElapsed = 0;
-      prize.y = prize.dropTargetY;
-      prize.dropScale = 0.965;
-    }
-  } else if (prize.dropPhase === 'fade') {
-    const progress = Math.min(prize.dropElapsed / ANIMATION.fadeDuration, 1);
-    prize.y = prize.dropTargetY;
-    prize.dropScale = 0.965 - progress * 0.1;
-    prize.dropAlpha = 1 - progress;
-    if (progress >= 1) {
-      updatePrizeGeometry(prize);
-      return true;
+      prizeChute.flash = 1;
+      result.sensorTriggered = true;
+      break;
     }
   }
+
+  if (prize.dropPhase === 'sensor-confirmed') {
+    const progress = Math.min(prize.dropElapsed / ANIMATION.chuteFadeDuration, 1);
+    prize.dropScale = 1 - progress * 0.08;
+    prize.dropAlpha = 1 - progress;
+    if (progress >= 1) result.complete = true;
+  }
   updatePrizeGeometry(prize);
-  return false;
+  return result;
+}
+
+function chooseSlipMessage(name) {
+  const messages = Math.random() < 0.7 ? encouragingMessages : teasingMessages;
+  const template = messages[Math.floor(Math.random() * messages.length)];
+  return template.replaceAll('{name}', name);
+}
+
+function isPhysicsPrize(prize) {
+  return !prize.collected && (
+    prize.state === PokemonState.IDLE
+    || prize.state === PokemonState.FALLING
+    || prize.state === PokemonState.SETTLING
+  );
+}
+
+function wakePrize(prize) {
+  prize.isSleeping = false;
+  prize.sleepTimer = 0;
+}
+
+function resolveWorldBounds(prize) {
+  const minimumX = prizeBounds.left;
+  const maximumX = prizeBounds.right - prize.width;
+  let collided = false;
+
+  if (prize.x < minimumX) {
+    prize.x = minimumX;
+    prize.velocityX = Math.abs(prize.velocityX) * PHYSICS.wallRestitution;
+    prize.angularVelocity += Math.min(0.28, Math.abs(prize.velocityY) * 0.0007);
+    collided = true;
+  } else if (prize.x > maximumX) {
+    prize.x = maximumX;
+    prize.velocityX = -Math.abs(prize.velocityX) * PHYSICS.wallRestitution;
+    prize.angularVelocity -= Math.min(0.28, Math.abs(prize.velocityY) * 0.0007);
+    collided = true;
+  }
+
+  if (prize.y + prize.height >= machine.floorY) {
+    prize.y = machine.floorY - prize.height;
+    if (prize.velocityY > 24) {
+      prize.velocityY = -prize.velocityY * prize.restitution;
+    } else {
+      prize.velocityY = 0;
+    }
+    prize.velocityX *= prize.friction;
+    prize.angularVelocity *= 0.72;
+    prize.touchingSurface = true;
+    collided = true;
+  }
+
+  if (prize.y < -prize.height * 1.5) {
+    prize.y = -prize.height * 1.5;
+    prize.velocityY = Math.max(0, prize.velocityY);
+  }
+  updatePrizeGeometry(prize);
+  return collided;
+}
+
+function resolveStaticRectCollision(prize, rectangle) {
+  const closestX = Math.max(rectangle.x, Math.min(prize.centerX, rectangle.x + rectangle.width));
+  const closestY = Math.max(rectangle.y, Math.min(prize.centerY, rectangle.y + rectangle.height));
+  let deltaX = prize.centerX - closestX;
+  let deltaY = prize.centerY - closestY;
+  let distance = Math.hypot(deltaX, deltaY);
+  let penetration = prize.bodyRadius - distance;
+
+  if (distance === 0) {
+    const distances = [
+      { value: prize.centerX - rectangle.x, normalX: -1, normalY: 0 },
+      { value: rectangle.x + rectangle.width - prize.centerX, normalX: 1, normalY: 0 },
+      { value: prize.centerY - rectangle.y, normalX: 0, normalY: -1 },
+      { value: rectangle.y + rectangle.height - prize.centerY, normalX: 0, normalY: 1 },
+    ].sort((first, second) => first.value - second.value);
+    deltaX = distances[0].normalX;
+    deltaY = distances[0].normalY;
+    distance = 1;
+    penetration = prize.bodyRadius + distances[0].value;
+  }
+
+  if (penetration <= 0) return false;
+  const normalX = deltaX / distance;
+  const normalY = deltaY / distance;
+  prize.x += normalX * penetration;
+  prize.y += normalY * penetration;
+  const velocityAlongNormal = prize.velocityX * normalX + prize.velocityY * normalY;
+  if (velocityAlongNormal < 0) {
+    prize.velocityX -= (1 + prize.restitution) * velocityAlongNormal * normalX;
+    prize.velocityY -= (1 + prize.restitution) * velocityAlongNormal * normalY;
+    const tangentX = -normalY;
+    const tangentY = normalX;
+    const tangentVelocity = prize.velocityX * tangentX + prize.velocityY * tangentY;
+    prize.velocityX -= tangentVelocity * 0.18 * tangentX;
+    prize.velocityY -= tangentVelocity * 0.18 * tangentY;
+    prize.angularVelocity += tangentVelocity * 0.0007;
+  }
+  prize.touchingSurface = true;
+  updatePrizeGeometry(prize);
+  return true;
+}
+
+function resolveChuteWalls(prize) {
+  const hitLeftWall = resolveStaticRectCollision(prize, prizeChute.walls.left);
+  const hitRightWall = resolveStaticRectCollision(prize, prizeChute.walls.right);
+  const hitLeftLip = resolveStaticRectCollision(prize, prizeChute.walls.leftLip);
+  const hitRightLip = resolveStaticRectCollision(prize, prizeChute.walls.rightLip);
+  const hitDivider = resolveStaticRectCollision(prize, prizeChute.divider);
+  return hitLeftWall || hitRightWall || hitLeftLip || hitRightLip || hitDivider;
+}
+
+function resolvePrizeCollision(first, second) {
+  const deltaX = second.centerX - first.centerX;
+  const deltaY = second.centerY - first.centerY;
+  const minimumDistance = first.bodyRadius + second.bodyRadius;
+  const distanceSquared = deltaX * deltaX + deltaY * deltaY;
+  if (distanceSquared >= minimumDistance * minimumDistance) return false;
+
+  const distance = Math.sqrt(distanceSquared) || 0.001;
+  const normalX = distance > 0.001 ? deltaX / distance : (first.centerX <= second.centerX ? 1 : -1);
+  const normalY = distance > 0.001 ? deltaY / distance : 0;
+  const overlap = minimumDistance - distance;
+  const firstWeight = first.isSleeping ? 0 : first.inverseMass;
+  const secondWeight = second.isSleeping ? 0 : second.inverseMass;
+  const movableWeight = firstWeight + secondWeight;
+
+  if (movableWeight > 0) {
+    const correction = Math.max(0, overlap - 0.35) / movableWeight * 0.72;
+    if (!first.isSleeping) {
+      first.x -= normalX * correction * firstWeight;
+      first.y -= normalY * correction * firstWeight;
+      updatePrizeGeometry(first);
+    }
+    if (!second.isSleeping) {
+      second.x += normalX * correction * secondWeight;
+      second.y += normalY * correction * secondWeight;
+      updatePrizeGeometry(second);
+    }
+  }
+
+  const relativeX = second.velocityX - first.velocityX;
+  const relativeY = second.velocityY - first.velocityY;
+  const velocityAlongNormal = relativeX * normalX + relativeY * normalY;
+  if (velocityAlongNormal < 0) {
+    if (Math.abs(velocityAlongNormal) > 10) {
+      wakePrize(first);
+      wakePrize(second);
+    }
+    const firstImpulseMass = first.isSleeping ? 0 : first.inverseMass;
+    const secondImpulseMass = second.isSleeping ? 0 : second.inverseMass;
+    const inverseMassSum = firstImpulseMass + secondImpulseMass;
+    if (inverseMassSum <= 0) return true;
+    const restitution = Math.min(first.restitution, second.restitution);
+    const impulse = -(1 + restitution) * velocityAlongNormal / inverseMassSum;
+    const impulseX = impulse * normalX;
+    const impulseY = impulse * normalY;
+    first.velocityX -= impulseX * firstImpulseMass;
+    first.velocityY -= impulseY * firstImpulseMass;
+    second.velocityX += impulseX * secondImpulseMass;
+    second.velocityY += impulseY * secondImpulseMass;
+
+    const tangentX = -normalY;
+    const tangentY = normalX;
+    const tangentSpeed = relativeX * tangentX + relativeY * tangentY;
+    const frictionImpulse = Math.max(-impulse * 0.22, Math.min(impulse * 0.22, -tangentSpeed / inverseMassSum));
+    first.velocityX -= frictionImpulse * tangentX * firstImpulseMass;
+    first.velocityY -= frictionImpulse * tangentY * firstImpulseMass;
+    second.velocityX += frictionImpulse * tangentX * secondImpulseMass;
+    second.velocityY += frictionImpulse * tangentY * secondImpulseMass;
+
+    const spin = frictionImpulse * 0.0008;
+    first.angularVelocity -= spin;
+    second.angularVelocity += spin;
+    if (Math.abs(impulse) > 45) {
+      wakePrize(first);
+      wakePrize(second);
+    }
+  }
+
+  first.touchingSurface = true;
+  second.touchingSurface = true;
+  return true;
+}
+
+function integratePrize(prize, step) {
+  if (prize.isSleeping) return;
+  const airDamping = Math.pow(PHYSICS.airFriction, step * 60);
+  const angularDamping = Math.pow(PHYSICS.angularDamping, step * 60);
+  prize.velocityY += GRAVITY * step;
+  prize.velocityX *= airDamping;
+  prize.angularVelocity *= angularDamping;
+  prize.angularVelocity = Math.max(
+    -PHYSICS.maxAngularVelocity,
+    Math.min(PHYSICS.maxAngularVelocity, prize.angularVelocity),
+  );
+  prize.x += prize.velocityX * step;
+  prize.y += prize.velocityY * step;
+  prize.rotation += prize.angularVelocity * step;
+  updatePrizeGeometry(prize);
+}
+
+function updateSleeping(prize, elapsed) {
+  if (!isPhysicsPrize(prize) || prize.isSleeping) return;
+  if (prize.touchingSurface) {
+    const contactDamping = Math.pow(0.82, elapsed / 16.667);
+    prize.velocityX *= Math.pow(0.94, elapsed / 16.667);
+    prize.angularVelocity *= contactDamping;
+  }
+  const speed = Math.hypot(prize.velocityX, prize.velocityY);
+  if (prize.touchingSurface
+    && speed < PHYSICS.sleepSpeed
+    && Math.abs(prize.angularVelocity) < PHYSICS.sleepAngularSpeed) {
+    prize.sleepTimer += elapsed;
+    if (prize.sleepTimer >= PHYSICS.sleepDelay) {
+      prize.isSleeping = true;
+      prize.velocityX = 0;
+      prize.velocityY = 0;
+      prize.angularVelocity = 0;
+      if (prize.state !== PokemonState.IDLE) prize.state = PokemonState.IDLE;
+    }
+  } else {
+    prize.sleepTimer = 0;
+  }
+}
+
+function updatePrizePhysics(elapsed) {
+  const safeElapsed = Math.min(Math.max(elapsed, 0), 50);
+  if (safeElapsed <= 0) return;
+  const dynamicPrizes = prizes.filter(isPhysicsPrize);
+  const totalSeconds = safeElapsed / 1000;
+  const substeps = Math.max(1, Math.min(5, Math.ceil(totalSeconds / PHYSICS.maxStep)));
+  const step = totalSeconds / substeps;
+  dynamicPrizes.forEach((prize) => { prize.touchingSurface = false; });
+
+  for (let substep = 0; substep < substeps; substep += 1) {
+    dynamicPrizes.forEach((prize) => {
+      integratePrize(prize, step);
+      resolveWorldBounds(prize);
+      resolveChuteWalls(prize);
+    });
+    for (let iteration = 0; iteration < PHYSICS.solverIterations; iteration += 1) {
+      for (let firstIndex = 0; firstIndex < dynamicPrizes.length; firstIndex += 1) {
+        for (let secondIndex = firstIndex + 1; secondIndex < dynamicPrizes.length; secondIndex += 1) {
+          resolvePrizeCollision(dynamicPrizes[firstIndex], dynamicPrizes[secondIndex]);
+        }
+      }
+      dynamicPrizes.forEach((prize) => {
+        resolveWorldBounds(prize);
+        resolveChuteWalls(prize);
+      });
+    }
+  }
+  dynamicPrizes.forEach((prize) => updateSleeping(prize, safeElapsed));
+}
+
+function nudgePileAtClaw(grabbedPrize = null) {
+  const contactY = claw.y + 34;
+  prizes.forEach((prize) => {
+    if (prize === grabbedPrize || !isPhysicsPrize(prize)) return;
+    const deltaX = prize.centerX - claw.x;
+    const deltaY = prize.centerY - contactY;
+    if (Math.abs(deltaX) > prize.bodyRadius + 42 || Math.abs(deltaY) > prize.bodyRadius + 36) return;
+    if (prize.lastClawPushAttempt === grabAttemptId) return;
+    prize.lastClawPushAttempt = grabAttemptId;
+    const direction = deltaX === 0 ? (Math.random() < 0.5 ? -1 : 1) : Math.sign(deltaX);
+    wakePrize(prize);
+    prize.velocityX += direction * randomBetween(28, 52);
+    prize.velocityY += randomBetween(8, 24);
+    prize.angularVelocity += direction * randomBetween(0.12, 0.28);
+  });
+}
+
+function releaseSlippedPrize() {
+  const grab = claw.currentGrab;
+  if (!grab) return;
+  const prize = grab.pokemon;
+  prize.state = PokemonState.FALLING;
+  prize.velocityX = randomBetween(-28, 28);
+  prize.velocityY = randomBetween(0, 18);
+  prize.angularVelocity = randomBetween(-0.72, 0.72);
+  prize.isSleeping = false;
+  prize.sleepTimer = 0;
+  prize.bounceCount = 0;
+  claw.currentGrab = null;
+  claw.caught = null;
+  claw.slipPhase = 'retracting';
+  claw.openAmount = 0.58;
+  currentCombo = 0;
+  comboDisplay.classList.remove('combo-pop');
+  updateHud();
+  showStatus(chooseSlipMessage(prize.name), 2200);
+  readyStatusPending = true;
+}
+
+function beginGripSlip() {
+  if (!claw.currentGrab) return;
+  claw.state = GameState.SLIPPING;
+  claw.slipPhase = 'loosening';
+  claw.phaseElapsed = 0;
 }
 
 function finishGame() {
@@ -750,8 +1234,15 @@ function updateClawAnimation(time, elapsed) {
       claw.y = Math.min(claw.targetY, claw.y + ANIMATION.descendSpeed * step);
       const prize = findPrizeAtClaw();
       if (prize) {
+        nudgePileAtClaw(prize);
         const perfect = Math.abs(prize.centerX - claw.x) <= 14;
+        const gripMissChance = randomBetween(GRIP_MISS_MIN, GRIP_MISS_MAX) * (perfect ? 0.8 : 1);
+        const willSlip = Math.random() < gripMissChance;
+        const slipDuringCarry = willSlip && Math.random() < 0.3;
+        const slipProgress = willSlip ? randomBetween(0.25, 0.65) : null;
+        const grabY = claw.y;
         claw.carryOffsetX = prize.centerX - claw.x;
+        claw.grabOffsetX = claw.carryOffsetX;
         claw.carryOffsetY = prize.y - claw.y;
         claw.grabStartedAt = time;
         claw.currentGrab = {
@@ -759,17 +1250,28 @@ function updateClawAnimation(time, elapsed) {
           perfect,
           basePoints: prize.character.score,
           comboMultiplier: Math.min(currentCombo + 1, 3),
-          startX: claw.returnX,
+          willSlip,
+          grabY,
+          slipProgress,
+          slipY: willSlip ? grabY + (claw.homeY - grabY) * slipProgress : null,
+          slipDuringCarry,
+          carrySlipDistance: slipDuringCarry ? randomBetween(24, 72) : 0,
         };
         claw.caught = prize;
         prize.perfect = perfect;
-        prize.isGrabbed = true;
+        prize.state = PokemonState.GRABBED;
+        prize.velocityX = 0;
+        prize.velocityY = 0;
+        prize.angularVelocity = 0;
+        prize.isSleeping = false;
+        prize.sleepTimer = 0;
         claw.openAmount = 1;
         claw.phaseElapsed = 0;
         claw.state = GameState.CLOSING;
         showStatus('GOTCHA!');
-      } else if (claw.y >= claw.targetY) {
-        claw.state = GameState.LIFTING;
+      } else {
+        nudgePileAtClaw();
+        if (claw.y >= claw.targetY) claw.state = GameState.LIFTING;
       }
       break;
     }
@@ -777,19 +1279,29 @@ function updateClawAnimation(time, elapsed) {
       claw.phaseElapsed += elapsed;
       const progress = Math.min(claw.phaseElapsed / ANIMATION.closeDuration, 1);
       claw.openAmount = 1 - easeInOut(progress);
+      claw.carryOffsetX = claw.grabOffsetX * (1 - easeInOut(progress));
       if (progress >= 1) {
         claw.openAmount = 0;
+        claw.carryOffsetX = 0;
         claw.phaseElapsed = 0;
         claw.state = GameState.LIFTING;
       }
       break;
     }
     case GameState.LIFTING: {
-      claw.y = Math.max(76, claw.y - ANIMATION.liftSpeed * step);
-      if (claw.y <= 76) {
-        claw.y = 76;
-        if (claw.currentGrab) {
-          claw.carryTargetX = Math.max(36, Math.min(machine.width - 36, prizeChute.centerX - claw.carryOffsetX));
+      const grab = claw.currentGrab;
+      claw.y = Math.max(claw.homeY, claw.y - ANIMATION.liftSpeed * step);
+      if (grab && grab.willSlip && !grab.slipDuringCarry && claw.y <= grab.slipY) {
+        beginGripSlip();
+        break;
+      }
+      if (claw.y <= claw.homeY) {
+        claw.y = claw.homeY;
+        if (grab) {
+          if (grab.willSlip && grab.slipDuringCarry) {
+            grab.carryStartX = claw.x;
+            grab.carrySlipDistance = Math.min(grab.carrySlipDistance, Math.abs(claw.homeX - claw.x) * 0.7);
+          }
           claw.state = GameState.CARRYING;
           claw.phaseElapsed = 0;
         } else {
@@ -797,53 +1309,74 @@ function updateClawAnimation(time, elapsed) {
           comboDisplay.classList.remove('combo-pop');
           updateHud();
           claw.openAmount = 1;
-          claw.state = GameState.READY;
-          machineElement.classList.remove('is-grabbing');
-          dropButton.classList.remove('is-pressed');
-          if (turns <= 0) finishGame();
-          else {
-            showStatus('MISSED!');
-            readyStatusPending = true;
-          }
+          claw.state = GameState.RETURNING;
+          showStatus('MISSED!');
+          readyStatusPending = true;
         }
       }
       break;
     }
     case GameState.CARRYING: {
-      if (claw.y < ANIMATION.carryY) {
-        claw.y = Math.min(ANIMATION.carryY, claw.y + ANIMATION.liftSpeed * step);
+      const grab = claw.currentGrab;
+      claw.x = moveTowards(claw.x, claw.homeX, ANIMATION.carrySpeed * step);
+      if (grab && grab.willSlip && grab.slipDuringCarry
+        && Math.abs(claw.x - grab.carryStartX) >= grab.carrySlipDistance) {
+        beginGripSlip();
+        break;
+      }
+      if (claw.x === claw.homeX) beginPrizeDrop();
+      break;
+    }
+    case GameState.SLIPPING: {
+      if (claw.slipPhase === 'loosening') {
+        claw.phaseElapsed += elapsed;
+        const progress = Math.min(claw.phaseElapsed / ANIMATION.slipLoosenDuration, 1);
+        claw.openAmount = 0.58 * easeInOut(progress);
+        if (progress >= 1) releaseSlippedPrize();
       } else {
-        claw.x = moveTowards(claw.x, claw.carryTargetX, ANIMATION.carrySpeed * step);
-        if (claw.x === claw.carryTargetX) beginPrizeDrop();
+        claw.y = moveTowards(claw.y, claw.homeY, ANIMATION.liftSpeed * step);
+        if (claw.y === claw.homeY) claw.state = GameState.RETURNING;
       }
       break;
     }
-    case GameState.DROPPING: {
-      const prize = claw.currentGrab && claw.currentGrab.pokemon;
-      if (!prize) break;
-      if (claw.dropPhase === 'opening') {
-        claw.phaseElapsed += elapsed;
-        const progress = Math.min(claw.phaseElapsed / ANIMATION.dropOpenDuration, 1);
-        claw.openAmount = easeInOut(progress);
-        if (progress >= 1) releasePrizeIntoChute(prize);
-      } else if (advancePrizeDrop(prize, elapsed)) {
-        prize.isDropping = false;
+    case GameState.RELEASING: {
+      claw.phaseElapsed += elapsed;
+      const progress = Math.min(claw.phaseElapsed / ANIMATION.dropOpenDuration, 1);
+      claw.openAmount = easeInOut(progress);
+      if (progress >= 1 && !releaseGrabbedPrize()) {
+        claw.state = GameState.RETURNING;
+      }
+      break;
+    }
+    case GameState.WAITING_FOR_CHUTE: {
+      const prize = claw.droppingPrize;
+      const grab = claw.dropGrab;
+      if (!prize || !grab) {
+        claw.droppingPrize = null;
+        claw.dropGrab = null;
+        claw.state = GameState.RETURNING;
+        break;
+      }
+
+      const dropResult = updateChuteDropPhysics(prize, elapsed);
+      if (dropResult.sensorTriggered && !grab.rewardResolved) {
+        grab.rewardResolved = true;
+        showStatus(processCatch(grab), 1800);
+      }
+      if (dropResult.complete) {
         prize.collected = true;
-        const resultStatus = processCatch(claw.currentGrab);
-        claw.currentGrab = null;
-        claw.caught = null;
-        claw.returnTargetX = claw.returnX;
+        claw.droppingPrize = null;
+        claw.dropGrab = null;
         claw.phaseElapsed = 0;
         claw.state = GameState.RETURNING;
-        showStatus(resultStatus);
       }
       break;
     }
     case GameState.RETURNING: {
-      claw.x = moveTowards(claw.x, claw.returnTargetX, ANIMATION.returnSpeed * step);
-      claw.y = moveTowards(claw.y, 76, ANIMATION.returnSpeed * 0.7 * step);
+      claw.x = moveTowards(claw.x, claw.homeX, ANIMATION.returnSpeed * step);
+      claw.y = moveTowards(claw.y, claw.homeY, ANIMATION.returnSpeed * 0.7 * step);
       claw.openAmount = moveTowards(claw.openAmount, 1, step * 4);
-      if (claw.x === claw.returnTargetX && claw.y === 76 && claw.openAmount === 1) {
+      if (claw.x === claw.homeX && claw.y === claw.homeY && claw.openAmount === 1) {
         machineElement.classList.remove('is-grabbing');
         dropButton.classList.remove('is-pressed');
         if (turns <= 0) finishGame();
@@ -868,10 +1401,12 @@ function render(time = 0) {
   }
   lastTime = time;
   updateClawAnimation(time, elapsed);
+  updatePrizePhysics(elapsed);
   context.clearRect(0, 0, machine.width, machine.height);
   drawBackground();
   drawPrizeChute(elapsed);
   prizes.forEach((prize, index) => drawPrize(prize, index, time));
+  drawPrizeChuteForeground();
   drawClaw();
   renderParticles(elapsed);
   requestAnimationFrame(render);
@@ -903,12 +1438,16 @@ function showGameComplete() {
 function findPrizeAtClaw() {
   const clawTop = claw.y + 10;
   const clawBottom = claw.y + 38;
-  return prizes.find((prize) => {
-    if (prize.collected || prize.isGrabbed || prize.isDropping || Math.abs(prize.centerX - claw.x) >= 55) return false;
-    const prizeTop = prize.y;
-    const prizeBottom = prize.y + prize.height;
-    return clawBottom >= prizeTop && clawTop <= prizeBottom;
-  });
+  return prizes
+    .filter((prize) => {
+      if (!isPhysicsPrize(prize) || Math.abs(prize.centerX - claw.x) >= prize.bodyRadius + 24) return false;
+      return clawBottom >= prize.y && clawTop <= prize.bottomY;
+    })
+    .sort((first, second) => {
+      const firstDistance = Math.abs(first.centerX - claw.x);
+      const secondDistance = Math.abs(second.centerX - claw.x);
+      return firstDistance - secondDistance || first.centerY - second.centerY;
+    })[0];
 }
 
 function animateCombo() {
@@ -973,15 +1512,18 @@ function processCatch(grab) {
 function dropClaw() {
   if (claw.state !== GameState.READY || turns <= 0) return;
   stopMoving();
+  grabAttemptId += 1;
   turns -= 1;
-  claw.returnX = claw.x;
-  claw.returnTargetX = claw.x;
   claw.state = GameState.DESCENDING;
   claw.targetY = machine.floorY - 75;
   claw.currentGrab = null;
   claw.caught = null;
   claw.phaseElapsed = 0;
+  claw.slipPhase = null;
   claw.openAmount = 1;
+  claw.grabOffsetX = 0;
+  claw.carryOffsetX = 0;
+  claw.carryOffsetY = 0;
   machineElement.classList.add('is-grabbing');
   dropButton.classList.add('is-pressed');
   showStatus('GRABBING...');
@@ -1002,20 +1544,21 @@ function resetGame() {
   sessionCaughtSpecies = new Set();
   particles = [];
   characterAssets.forEach((character) => { character.newThisGame = false; });
-  claw.x = 350;
-  claw.y = 76;
+  claw.x = claw.homeX;
+  claw.y = claw.homeY;
   claw.state = GameState.READY;
-  claw.targetY = 76;
-  claw.returnX = 350;
-  claw.returnTargetX = 350;
+  claw.targetY = claw.homeY;
   claw.caught = null;
   claw.currentGrab = null;
+  claw.droppingPrize = null;
+  claw.dropGrab = null;
   claw.openAmount = 1;
   claw.phaseElapsed = 0;
+  claw.slipPhase = null;
+  claw.grabOffsetX = 0;
   claw.carryOffsetX = 0;
   claw.carryOffsetY = 0;
   claw.grabStartedAt = 0;
-  claw.dropPhase = null;
   prizeChute.flash = 0;
   canvasFrame.classList.remove('is-game-over');
   gameCompleteOverlay.hidden = true;
