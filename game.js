@@ -74,10 +74,7 @@ const PHYSICS = Object.freeze({
 const GRAVITY = PHYSICS.gravity;
 const encouragingMessages = [
   'Cố lên! Sắp gắp được {name} rồi!',
-  'Suýt nữa thì có {name}!',
   'Một chút nữa thôi!',
-  'Cố thêm lần nữa nào!',
-  '{name} vẫn đang chờ bạn đấy!',
   'Gần lắm rồi!',
   'Thêm phát nữa là được!',
 ];
@@ -87,6 +84,8 @@ const teasingMessages = [
   'Càng gắp phản chủ rồi!',
   'Ủa alo? Rớt thật luôn!',
   '{name}: bắt được tôi còn lâu nhé!',
+  'Úi gà thía =)))))',
+  'Ê =)))))'
 ];
 const CLAW_SCALE = 0.84;
 const PRIZE_SCALE = 0.8;
