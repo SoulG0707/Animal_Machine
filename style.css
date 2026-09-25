@@ -411,8 +411,6 @@ button:focus-visible, a:focus-visible {
   height: var(--claw-lane-height, 20.923%);
   overflow: hidden;
   pointer-events: none;
-  outline: 2px solid red;
-  outline-offset: -2px;
 }
 
 .machine-message {
@@ -503,7 +501,25 @@ button:focus-visible, a:focus-visible {
   box-shadow: 0 0 0 4px rgba(255, 211, 66, 0.16);
 }
 
-.control-actions { display: flex; align-items: center; gap: var(--space-2); }
+.control-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.control-actions button,
+.control-actions button > * {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.control-actions button > * { pointer-events: none; }
 .arrow-btn, .drop-btn, .reset-btn, .play-again-btn { cursor: pointer; }
 
 .arrow-btn, .drop-btn {
@@ -514,8 +530,6 @@ button:focus-visible, a:focus-visible {
   border: 0;
   border-radius: 7px;
   transition: transform 140ms ease, filter 140ms ease, box-shadow 140ms ease;
-  touch-action: none;
-  user-select: none;
 }
 
 .arrow-btn {
@@ -524,6 +538,7 @@ button:focus-visible, a:focus-visible {
   background: var(--yellow);
   box-shadow: 0 3px 0 #ca9f25;
   font-size: 24px;
+  touch-action: none;
 }
 
 .drop-btn {
@@ -535,6 +550,7 @@ button:focus-visible, a:focus-visible {
   box-shadow: 0 3px 0 #17283a;
   font: 500 10px 'DM Mono', monospace;
   letter-spacing: 0.1em;
+  touch-action: manipulation;
 }
 
 .drop-key { color: var(--yellow); font-size: 9px; }
