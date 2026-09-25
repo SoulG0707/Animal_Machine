@@ -1,0 +1,19 @@
+.reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 42px;
+  margin-top: var(--space-8);
+  padding: 0 13px;
+  border: 1px solid rgba(189, 49, 63, 0.3);
+  border-radius: 7px;
+  color: var(--coral-dark);
+  background: rgba(255, 252, 243, 0.56);
+  font: 500 10px 'DM Mono', monospace;
+  letter-spacing: 0.08em;
+  transition: transform 140ms ease, color 140ms ease, background-color 140ms ease;
+}
+
+.reset-btn:hover { color: var(--surface); background: var(--coral); }
+.reset-btn:active, .play-again-btn:active { transform: translateY(2px); }
+

@@ -1,0 +1,17 @@
+export const POKEMON_DATA = Object.freeze([
+  { name: 'Pikachu', path: 'assets/characters/Pikachu.svg', score: 50, rarity: 'epic' },
+  { name: 'Bulbasaur', path: 'assets/characters/Bulbasaur.svg', score: 10, rarity: 'common' },
+  { name: 'Charmander', path: 'assets/characters/Charmander.svg', score: 10, rarity: 'common' },
+  { name: 'Vulpix', path: 'assets/characters/Vulpix.svg', score: 20, rarity: 'rare' },
+  { name: 'Mewtwo', path: 'assets/characters/Mewtwo.svg', score: 70, rarity: 'legendary' },
+  { name: 'Chikorita', path: 'assets/characters/Chikorita.svg', score: 10, rarity: 'common' },
+  { name: 'Cyndaquil', path: 'assets/characters/Cyndaquil.svg', score: 10, rarity: 'common' },
+  { name: 'Poliwag', path: 'assets/characters/Poliwag.svg', score: 10, rarity: 'common' },
+  { name: 'Psyduck', path: 'assets/characters/Psyduck.svg', score: 10, rarity: 'common' },
+  { name: 'Wartortle', path: 'assets/characters/Wartortle.svg', score: 20, rarity: 'rare' },
+  { name: 'Arbok', path: 'assets/characters/Arbok.svg', score: -20, rarity: 'common' },
+  { name: 'Clefairy', path: 'assets/characters/Clefairy.svg', score: 20, rarity: 'rare' },
+  { name: 'Kingler', path: 'assets/characters/Kingler.svg', score: 20, rarity: 'rare' },
+  { name: 'Meowth', path: 'assets/characters/Meowth.svg', score: -10, rarity: 'common' },
+  { name: 'Ninetales', path: 'assets/characters/Ninetales.svg', score: 30, rarity: 'rare' },
+]);

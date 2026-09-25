@@ -1,0 +1,18 @@
+.mission-card {
+  min-width: 0;
+  margin-top: var(--space-6);
+  padding: 11px 9px;
+  border: 1px solid rgba(230, 70, 77, 0.2);
+  border-radius: 10px;
+  background: rgba(255, 252, 243, 0.62);
+}
+.mission-heading .eyebrow { margin: 0; color: var(--coral-dark); }
+.mission-icon { color: var(--yellow); font-size: 15px; line-height: 1; text-shadow: 0 1px 0 rgba(36, 51, 70, 0.26); }
+.mission-copy { min-height: 2.7em; margin: 8px 0; color: var(--ink); font-size: 12px; font-weight: 600; line-height: 1.35; }
+.mission-progress-row { display: flex; align-items: center; justify-content: space-between; gap: 5px; color: var(--muted); font: 8px 'DM Mono', monospace; }
+.mission-progress-row span:last-child { color: var(--teal); font-size: 7px; text-align: right; }
+.mission-track { height: 5px; margin-top: 7px; overflow: hidden; border-radius: 999px; background: rgba(36, 51, 70, 0.11); }
+.mission-track span { display: block; width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--teal), #81c765); transition: width 240ms ease; }
+.mission-card.is-complete { border-color: rgba(57, 149, 109, 0.38); background: rgba(57, 149, 109, 0.08); }
+.mission-card.is-complete .mission-progress-row span:last-child { color: var(--teal); }
+

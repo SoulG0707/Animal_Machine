@@ -4,12 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="theme-color" content="#f0f2ea" />
-    <link rel="icon" type="image/svg+xml" href="character/Pikachu.svg" />
+    <link rel="icon" type="image/svg+xml" href="assets/characters/Pikachu.svg" />
     <title>Pokémon Prize Machine · Animal Machine</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="css/main.css" />
   </head>
   <body>
     <section class="start-screen" id="start-screen" aria-labelledby="start-title">
@@ -38,10 +38,10 @@
             <div class="preview-glass">
               <span class="preview-rail" aria-hidden="true"></span>
               <span class="preview-claw" aria-hidden="true"><i></i></span>
-              <img class="preview-pokemon preview-pikachu" src="character/Pikachu.svg" alt="" />
-              <img class="preview-pokemon preview-bulbasaur" src="character/Bulbasaur.svg" alt="" />
-              <img class="preview-pokemon preview-charmander" src="character/Charmander.svg" alt="" />
-              <img class="preview-pokemon preview-mewtwo" src="character/Mewtwo.svg" alt="" />
+              <img class="preview-pokemon preview-pikachu" src="assets/characters/Pikachu.svg" alt="" />
+              <img class="preview-pokemon preview-bulbasaur" src="assets/characters/Bulbasaur.svg" alt="" />
+              <img class="preview-pokemon preview-charmander" src="assets/characters/Charmander.svg" alt="" />
+              <img class="preview-pokemon preview-mewtwo" src="assets/characters/Mewtwo.svg" alt="" />
               <span class="preview-chute" aria-hidden="true">PRIZE</span>
             </div>
             <div class="preview-controls" aria-hidden="true"><i></i><span>◀ &nbsp; GRAB &nbsp; ▶</span><i></i></div>
@@ -175,6 +175,6 @@
 
       <footer class="footer-note"><span>CATCH 'EM ALL</span><span>TRAINER'S PRIZE CABINET</span><span>© AM STUDIO</span></footer>
     </main>
-    <script src="game.js"></script>
+    <script type="module" src="./js/main.js"></script>
   </body>
 </html>

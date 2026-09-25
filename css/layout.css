@@ -1,0 +1,186 @@
+.app-shell {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  width: min(100%, 1360px);
+  height: 100vh;
+  height: 100dvh;
+  min-height: 0;
+  margin: 0 auto;
+  padding: 16px clamp(20px, 2.8vw, 40px) 14px;
+}
+
+/* Header */
+.topbar, .footer-note {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.topbar {
+  min-height: 60px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 0.95;
+  letter-spacing: 0.08em;
+  text-decoration: none;
+}
+
+.brand-mark {
+  position: relative;
+  display: grid;
+  width: 34px;
+  height: 34px;
+  place-items: center;
+  overflow: hidden;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: linear-gradient(to bottom, var(--coral) 0 43%, var(--ink) 43% 57%, var(--surface) 57% 100%);
+  box-shadow: 0 3px 0 rgba(36, 51, 70, 0.2);
+}
+
+.brand-mark::after {
+  width: 12px;
+  height: 12px;
+  content: '';
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  background: var(--surface);
+}
+
+.header-note, .high-score, .footer-note, .coin-slot, .eyebrow,
+.control-label, .machine-topline, .collection-heading > span {
+  font-family: 'DM Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.13em;
+}
+
+.header-note {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--teal);
+}
+
+.trainer-level {
+  padding: 4px 6px;
+  border: 1px solid rgba(57, 149, 109, 0.24);
+  border-radius: 999px;
+  color: var(--teal);
+  background: rgba(57, 149, 109, 0.08);
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.status-dot, .led {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--teal);
+  box-shadow: 0 0 0 4px rgba(57, 149, 109, 0.13);
+}
+
+.status-dot { animation: status-breathe 2.8s ease-in-out infinite; }
+
+.high-score {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--muted-light);
+}
+
+.high-score strong {
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+/* Intro */
+.game-layout {
+  display: grid;
+  grid-template-columns: minmax(190px, 0.72fr) minmax(340px, 1.6fr) minmax(145px, 0.52fr);
+  align-items: center;
+  gap: clamp(16px, 2vw, 30px);
+  min-height: 0;
+  padding: clamp(10px, 2vh, 20px) 0;
+}
+
+.intro-panel { align-self: center; }
+
+.eyebrow {
+  margin: 0 0 var(--space-4);
+  color: var(--muted-light);
+  font-weight: 500;
+}
+
+.intro-panel h1 {
+  margin: 0;
+  font-size: clamp(36px, 3.5vw, 52px);
+  font-weight: 700;
+  line-height: 0.96;
+  letter-spacing: -0.065em;
+}
+
+.intro-panel h1 em { color: var(--coral); font-style: normal; }
+
+.intro-copy {
+  max-width: 27ch;
+  margin: var(--space-4) 0 var(--space-4);
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.instructions { display: grid; gap: var(--space-2); }
+
+.instruction {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 34px;
+}
+
+.instruction p { margin: 0; color: var(--muted); font-size: 12px; }
+.instruction p span { margin-left: 4px; color: var(--muted-light); font-size: 10px; }
+
+.keycap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-width: 48px;
+  min-height: 32px;
+  padding: 3px 5px;
+  border: 1px solid rgba(36, 51, 70, 0.2);
+  border-bottom-width: 3px;
+  border-radius: 6px;
+  background: rgba(255, 252, 243, 0.74);
+  box-shadow: 0 1px 0 rgba(36, 51, 70, 0.05);
+}
+
+.keycap kbd { color: var(--ink); font: 500 13px 'DM Mono', monospace; }
+.keycap-space { min-width: 58px; }
+.keycap-space kbd { font-size: 9px; letter-spacing: 0.06em; }
+
+/* Footer */
+.footer-note {
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--border);
+  color: var(--muted-light);
+  font-size: 9px;
+}
+
+.footer-note span:nth-child(2) { color: var(--coral-dark); }
+
