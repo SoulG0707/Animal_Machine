@@ -8,6 +8,7 @@ const turnsElement = document.querySelector('#turns');
 const bestScoreElement = document.querySelector('#best-score');
 const prizeCountElement = document.querySelector('#prize-count');
 const statusText = document.querySelector('#status-text');
+const machineMessage = document.querySelector('#machine-message');
 const canvasFrame = document.querySelector('.canvas-frame');
 const turnPips = document.querySelector('#turn-pips');
 const machineElement = document.querySelector('.machine');
@@ -90,6 +91,7 @@ const teasingMessages = [
 const CLAW_SCALE = 0.84;
 const PRIZE_SCALE = 0.8;
 const CLAW_LANE_BOTTOM = 136;
+canvasFrame.style.setProperty('--claw-lane-height', (CLAW_LANE_BOTTOM / machine.height * 100) + '%');
 const PRIZE_AREA_PADDING = 12;
 const SHINY_CHANCE = 0.018;
 const EXPERIENCE_PER_LEVEL = 250;
@@ -275,6 +277,8 @@ let bestScore = readStoredNumber(STORAGE_KEYS.best);
 let trainerXp = readStoredNumber(STORAGE_KEYS.trainerXp);
 let lastTime = 0;
 let statusTimer;
+let messageTimer;
+let messageClearTimer;
 let readyStatusPending = false;
 let heldDirection = 0;
 let newBestThisGame = false;
@@ -319,6 +323,41 @@ function showStatus(message, duration = 1500) {
       showStatus('READY', 900);
     }
   }, duration);
+}
+
+function hideMessage(immediate = false) {
+  clearTimeout(messageTimer);
+  clearTimeout(messageClearTimer);
+  machineMessage.classList.remove('is-visible');
+  machineMessage.setAttribute('aria-hidden', 'true');
+  if (immediate) {
+    machineMessage.textContent = '';
+    delete machineMessage.dataset.tone;
+    return;
+  }
+  messageClearTimer = setTimeout(() => {
+    if (machineMessage.classList.contains('is-visible')) return;
+    machineMessage.textContent = '';
+    delete machineMessage.dataset.tone;
+  }, 350);
+}
+
+function showMachineMessage(message, options = {}) {
+  if (!message) {
+    hideMessage();
+    return;
+  }
+  const duration = Math.max(2500, Math.min(Number(options.duration) || 3200, 4000));
+  const tone = options.tone === 'tease' ? 'tease' : 'encourage';
+  clearTimeout(messageTimer);
+  clearTimeout(messageClearTimer);
+  machineMessage.classList.remove('is-visible');
+  machineMessage.textContent = message;
+  machineMessage.dataset.tone = tone;
+  machineMessage.setAttribute('aria-hidden', 'false');
+  void machineMessage.offsetWidth;
+  machineMessage.classList.add('is-visible');
+  messageTimer = setTimeout(() => hideMessage(), duration);
 }
 
 function showCharacterDetail(character) {
@@ -920,9 +959,10 @@ function updateChuteDropPhysics(prize, elapsed) {
 }
 
 function chooseSlipMessage(name) {
-  const messages = Math.random() < 0.7 ? encouragingMessages : teasingMessages;
+  const tone = Math.random() < 0.7 ? 'encourage' : 'tease';
+  const messages = tone === 'encourage' ? encouragingMessages : teasingMessages;
   const template = messages[Math.floor(Math.random() * messages.length)];
-  return template.replaceAll('{name}', name);
+  return { text: template.replaceAll('{name}', name), tone };
 }
 
 function isPhysicsPrize(prize) {
@@ -1207,7 +1247,9 @@ function releaseSlippedPrize() {
   currentCombo = 0;
   comboDisplay.classList.remove('combo-pop');
   updateHud();
-  showStatus(chooseSlipMessage(prize.name), 2200);
+  const feedback = chooseSlipMessage(prize.name);
+  showStatus('MISSED!', 1400);
+  showMachineMessage(feedback.text, { duration: 3200, tone: feedback.tone });
   readyStatusPending = true;
 }
 
@@ -1220,6 +1262,7 @@ function beginGripSlip() {
 
 function finishGame() {
   stopMoving();
+  hideMessage(true);
   claw.state = GameState.GAME_OVER;
   claw.openAmount = 1;
   machineElement.classList.remove('is-grabbing');
@@ -1312,6 +1355,8 @@ function updateClawAnimation(time, elapsed) {
           claw.openAmount = 1;
           claw.state = GameState.RETURNING;
           showStatus('MISSED!');
+          const feedback = chooseSlipMessage('Pokémon');
+          showMachineMessage(feedback.text, { duration: 3200, tone: feedback.tone });
           readyStatusPending = true;
         }
       }
@@ -1534,6 +1579,7 @@ function dropClaw() {
 
 function resetGame() {
   clearTimeout(statusTimer);
+  hideMessage(true);
   readyStatusPending = false;
   score = 0;
   turns = 5;
