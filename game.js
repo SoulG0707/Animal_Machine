@@ -57,7 +57,7 @@ const PokemonState = Object.freeze({
 });
 const GRIP_MISS_MIN = 0.4;
 const GRIP_MISS_MAX = 0.9;
-const TEASING_MESSAGE_CHANCE = 0.7;
+const TEASING_MESSAGE_CHANCE = 0.9;
 const PHYSICS = Object.freeze({
   gravity: 1080,
   restitution: 0.12,
@@ -1280,7 +1280,7 @@ function updateClawAnimation(time, elapsed) {
       if (prize) {
         nudgePileAtClaw(prize);
         const perfect = Math.abs(prize.centerX - claw.x) <= 14;
-        const gripMissChance = randomBetween(GRIP_MISS_MIN, GRIP_MISS_MAX) * (perfect ? 0.8 : 1);
+        const gripMissChance = randomBetween(GRIP_MISS_MIN, GRIP_MISS_MAX) * (perfect ? 0.6 : 1);
         const willSlip = Math.random() < gripMissChance;
         const slipDuringCarry = willSlip && Math.random() < 0.3;
         const slipProgress = willSlip ? randomBetween(0.25, 0.65) : null;
