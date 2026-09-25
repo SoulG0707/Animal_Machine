@@ -55,8 +55,9 @@ const PokemonState = Object.freeze({
   DROPPING_TO_CHUTE: 'dropping-to-chute',
   CAUGHT: 'caught',
 });
-const GRIP_MISS_MIN = 0.3;
+const GRIP_MISS_MIN = 0.4;
 const GRIP_MISS_MAX = 0.9;
+const TEASING_MESSAGE_CHANCE = 0.7;
 const PHYSICS = Object.freeze({
   gravity: 1080,
   restitution: 0.12,
@@ -958,7 +959,7 @@ function updateChuteDropPhysics(prize, elapsed) {
 }
 
 function chooseSlipMessage(name) {
-  const tone = Math.random() < 0.7 ? 'encourage' : 'tease';
+  const tone = Math.random() < TEASING_MESSAGE_CHANCE ? 'tease' : 'encourage';
   const messages = tone === 'encourage' ? encouragingMessages : teasingMessages;
   const template = messages[Math.floor(Math.random() * messages.length)];
   return { text: template.replaceAll('{name}', name), tone };
