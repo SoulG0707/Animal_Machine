@@ -48,6 +48,7 @@ const GameState = Object.freeze({
 const PokemonState = Object.freeze({
   IDLE: 'idle',
   GRABBED: 'grabbed',
+  SLIPPING: 'slipping',
   FALLING: 'falling',
   SETTLING: 'settling',
   DROPPING_TO_CHUTE: 'dropping-to-chute',
@@ -70,7 +71,6 @@ const PHYSICS = Object.freeze({
   maxStep: 1 / 90,
 });
 const GRAVITY = PHYSICS.gravity;
-const CHUTE_PHYSICS_TIME_SCALE = 1;
 const encouragingMessages = [
   'Cố lên! Sắp gắp được {name} rồi!',
   'Suýt nữa thì có {name}!',
@@ -864,7 +864,7 @@ function releaseGrabbedPrize() {
   prize.dropScale = 1;
   prize.velocityX = 0;
   prize.velocityY = 0;
-  prize.angularVelocity = randomBetween(-0.12, 0.12);
+  prize.angularVelocity = randomBetween(-0.025, 0.025);
   prize.chuteSensorTriggered = false;
   prize.releaseX = prize.x;
   prize.releaseY = prize.y;
@@ -881,7 +881,7 @@ function releaseGrabbedPrize() {
 }
 
 function updateChuteDropPhysics(prize, elapsed) {
-  const safeElapsed = Math.min(elapsed, 50) * CHUTE_PHYSICS_TIME_SCALE;
+  const safeElapsed = Math.min(elapsed, 50);
   const totalSeconds = safeElapsed / 1000;
   const substeps = Math.max(1, Math.min(5, Math.ceil(totalSeconds / PHYSICS.maxStep)));
   const step = totalSeconds / substeps;
@@ -928,6 +928,7 @@ function chooseSlipMessage(name) {
 function isPhysicsPrize(prize) {
   return !prize.collected && (
     prize.state === PokemonState.IDLE
+    || prize.state === PokemonState.SLIPPING
     || prize.state === PokemonState.FALLING
     || prize.state === PokemonState.SETTLING
   );
@@ -1192,7 +1193,7 @@ function releaseSlippedPrize() {
   const grab = claw.currentGrab;
   if (!grab) return;
   const prize = grab.pokemon;
-  prize.state = PokemonState.FALLING;
+  prize.state = PokemonState.SLIPPING;
   prize.velocityX = randomBetween(-28, 28);
   prize.velocityY = randomBetween(0, 18);
   prize.angularVelocity = randomBetween(-0.72, 0.72);
@@ -1361,7 +1362,8 @@ function updateClawAnimation(time, elapsed) {
       const dropResult = updateChuteDropPhysics(prize, elapsed);
       if (dropResult.sensorTriggered && !grab.rewardResolved) {
         grab.rewardResolved = true;
-        showStatus(processCatch(grab), 1800);
+        const rewardStatus = processCatch(grab);
+        showStatus('CAUGHT! · ' + rewardStatus, 1800);
       }
       if (dropResult.complete) {
         prize.collected = true;
