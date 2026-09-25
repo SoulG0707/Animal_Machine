@@ -25,6 +25,7 @@ const playAgainButton = document.querySelector('#play-again-btn');
 const leftButton = document.querySelector('#left-btn');
 const rightButton = document.querySelector('#right-btn');
 const dropButton = document.querySelector('#drop-btn');
+const controlActions = document.querySelector('.control-actions');
 const comboDisplay = document.querySelector('#combo-display');
 const missionCard = document.querySelector('.mission-card');
 const missionCopy = document.querySelector('#mission-copy');
@@ -77,16 +78,17 @@ const encouragingMessages = [
   'Cố lên! Sắp gắp được {name} rồi!',
   'Một chút nữa thôi!',
   'Gần lắm rồi!',
-  'Thêm phát nữa là được!',
 ];
 const teasingMessages = [
-  'Ui, có thế cũng hụt à, gà thế!',
-  'Ơ kìa, tới miệng còn rớt!',
-  'Càng gắp phản chủ rồi!',
-  'Ủa alo? Rớt thật luôn!',
+  'Ui, có thế cũng hụt à, gà =))))',
+  'Ơ kìa, tới miệng còn rớt =))))',
+  'Càng gắp phản chủ rồi =))))',
+  'Ủa alo? Rớt thật luôn cha =)))',
   '{name}: bắt được tôi còn lâu nhé!',
   'Úi gà thía =)))))',
-  'Ê =)))))'
+  'Ê =)))))',
+  'Gắp mà rớt, gà quá =))))',
+  'Thua rồi =))))',
 ];
 const CLAW_SCALE = 0.84;
 const PRIZE_SCALE = 0.8;
@@ -1656,6 +1658,7 @@ function stopMoving() {
 });
 
 dropButton.addEventListener('pointerdown', (event) => {
+  event.preventDefault();
   if (claw.state !== GameState.READY || turns <= 0) return;
   dropButton.classList.add('is-pressed');
   if (dropButton.setPointerCapture) dropButton.setPointerCapture(event.pointerId);
@@ -1664,6 +1667,9 @@ dropButton.addEventListener('pointerup', () => dropButton.classList.remove('is-p
 dropButton.addEventListener('pointercancel', () => dropButton.classList.remove('is-pressed'));
 dropButton.addEventListener('lostpointercapture', () => dropButton.classList.remove('is-pressed'));
 dropButton.addEventListener('click', dropClaw);
+['contextmenu', 'dragstart', 'selectstart'].forEach((eventName) => {
+  controlActions.addEventListener(eventName, (event) => event.preventDefault());
+});
 document.querySelector('#reset-btn').addEventListener('click', resetGame);
 playAgainButton.addEventListener('click', () => {
   resetGame();
