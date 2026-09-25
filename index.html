@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f0f2ea" />
+    <title>Pokémon Prize Machine · Animal Machine</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="app-shell" id="top">
+      <header class="topbar">
+        <a class="brand" href="#top" aria-label="Pokémon Machine, về đầu trang">
+          <span class="brand-mark" aria-hidden="true"></span>
+          <span>POKÉMON<br />MACHINE</span>
+        </a>
+        <div class="header-note"><span class="status-dot" aria-hidden="true"></span><span class="status-copy">TRAINER MODE</span><span class="trainer-level" id="trainer-level" title="Trainer experience">LV 1</span></div>
+        <div class="high-score"><span>BEST</span><strong id="best-score">000</strong></div>
+      </header>
+
+      <section class="game-layout" aria-label="Máy gắp Pokémon Animal Machine">
+        <section class="intro-panel" aria-labelledby="intro-title">
+          <p class="eyebrow">POKÉMON PRIZE CABINET</p>
+          <h1 id="intro-title">Catch your<br /><em>favorite.</em></h1>
+          <p class="intro-copy">Canh đúng vị trí, thả càng và đưa một Pokémon vào đội hình của bạn.</p>
+          <div class="instructions" aria-label="Phím điều khiển">
+            <div class="instruction"><span class="keycap"><kbd>←</kbd><kbd>→</kbd></span><p>Di chuyển càng <span>A / D</span></p></div>
+            <div class="instruction"><span class="keycap keycap-space"><kbd>SPACE</kbd></span><p>Thả càng xuống</p></div>
+          </div>
+
+          <section class="collection-preview" aria-labelledby="collection-title">
+            <div class="collection-heading">
+              <p class="eyebrow" id="collection-title">POKÉDEX / COLLECTION</p>
+              <span id="prize-count">0 / 15 CAUGHT</span>
+            </div>
+            <div class="character-list" id="character-list" role="group" aria-label="Pokédex collection"></div>
+            <p class="character-detail" id="character-detail" aria-live="polite"></p>
+          </section>
+        </section>
+
+        <section class="machine-wrap" aria-label="Máy gắp Pokémon">
+          <div class="machine-lights" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="machine">
+            <div class="machine-topline"><span>AM / TRAINER CLUB</span><span aria-label="Three stars">★ ★ ★</span></div>
+            <div class="canvas-frame">
+              <canvas id="game-canvas" width="720" height="650" role="img" aria-label="Bàn chơi chứa 15 Pokémon"></canvas>
+              <div class="game-complete-overlay" id="game-complete-overlay" aria-hidden="true" hidden>
+                <section class="game-complete-card" role="dialog" aria-modal="true" aria-labelledby="complete-title">
+                  <p class="eyebrow" id="complete-title">CATCH SESSION COMPLETE</p>
+                  <p class="new-best-badge" id="new-best-badge" hidden>✦ TRAINER BEST!</p>
+                  <strong class="final-score" id="final-score">000</strong>
+                  <span class="final-score-label">POINTS</span>
+                  <div class="session-stats" aria-label="Session results">
+                    <p>Pokémon caught <strong id="modal-caught">0</strong></p>
+                    <p>Best combo <strong id="modal-combo">×1</strong></p>
+                    <p>New Pokémon <strong id="modal-new-pokemon">None</strong></p>
+                  </div>
+                  <p class="final-best">Trainer best <strong id="modal-best-score">000</strong></p>
+                  <button class="play-again-btn" id="play-again-btn" type="button">PLAY AGAIN <span aria-hidden="true">↻</span></button>
+                </section>
+              </div>
+            </div>
+            <div class="machine-controls">
+              <div class="control-label"><span class="led" aria-hidden="true"></span><span id="status-text" aria-live="polite" aria-label="Game status"></span></div>
+              <div class="control-actions" role="group" aria-label="Điều khiển máy gắp">
+                <button class="arrow-btn" id="left-btn" type="button" aria-label="Di chuyển sang trái" aria-keyshortcuts="ArrowLeft A" title="Giữ để di chuyển sang trái">
+                  <span aria-hidden="true">←</span><span class="mobile-action-label">LEFT</span>
+                </button>
+                <button class="drop-btn" id="drop-btn" type="button" aria-label="Thả càng gắp" aria-keyshortcuts="Space" title="Thả càng xuống để gắp">
+                  <span class="drop-key" aria-hidden="true">SPACE</span><span>GRAB</span>
+                </button>
+                <button class="arrow-btn" id="right-btn" type="button" aria-label="Di chuyển sang phải" aria-keyshortcuts="ArrowRight D" title="Giữ để di chuyển sang phải">
+                  <span aria-hidden="true">→</span><span class="mobile-action-label">RIGHT</span>
+                </button>
+              </div>
+              <div class="coin-slot"><span class="coin" aria-hidden="true">●</span> INSERT COIN</div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="score-panel" aria-label="Bảng điểm">
+          <div class="score-block">
+            <div class="score-heading"><p class="eyebrow">SCORE</p><span class="combo-badge" id="combo-display" hidden>COMBO ×2</span></div>
+            <strong id="score" aria-live="polite">000</strong><span>POINTS</span>
+          </div>
+          <div class="divider" aria-hidden="true"></div>
+          <div class="turns-block"><p class="eyebrow">TURNS LEFT</p><strong id="turns">05</strong><div class="turn-pips" id="turn-pips" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div></div>
+          <section class="mission-card" aria-labelledby="mission-title">
+            <div class="mission-heading"><p class="eyebrow" id="mission-title">MISSION</p><span class="mission-icon" aria-hidden="true">✦</span></div>
+            <p class="mission-copy" id="mission-copy">Catch 3 Pokémon</p>
+            <div class="mission-progress-row"><span id="mission-progress">0 / 3</span><span id="mission-state">IN PROGRESS</span></div>
+            <div class="mission-track" aria-hidden="true"><span id="mission-fill"></span></div>
+          </section>
+          <button class="reset-btn" id="reset-btn" type="button"><span aria-hidden="true">↻</span> NEW GAME</button>
+        </aside>
+      </section>
+
+      <footer class="footer-note"><span>CATCH 'EM ALL</span><span>TRAINER'S PRIZE CABINET</span><span>© AM STUDIO</span></footer>
+    </main>
+    <script src="game.js"></script>
+  </body>
+</html>
