@@ -73,8 +73,7 @@ const result = await evaluate(`(async () => {
   game.claw.y = 400;
   game.claw.openAmount = 1;
   game.claw.swingAngle = 0;
-  game.claw.contactCandidates.clear();
-  game.claw.contactHooksFired.clear();
+  game.grab.resetClawContacts();
   const openColliders = game.claw.updateColliderGeometry();
   const penetration = 8;
   placeCenter(
@@ -110,8 +109,7 @@ const result = await evaluate(`(async () => {
   game.claw.y = 470;
   game.claw.openAmount = 1;
   game.claw.swingAngle = 0;
-  game.claw.contactCandidates.clear();
-  game.claw.contactHooksFired.clear();
+  game.grab.resetClawContacts();
   const initialZone = game.claw.getGrabZone();
   placeCenter(target, initialZone.x, initialZone.y);
   let maximumSpeed = 0;

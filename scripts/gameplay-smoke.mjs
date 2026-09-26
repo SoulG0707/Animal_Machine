@@ -47,6 +47,7 @@ const result = await evaluate(`(async () => {
   const initial = game.getSnapshot();
   const originalRandom = Math.random;
   const first = game.state.prizes.find(prize => prize.character.score > 0);
+  game.state.prizes.forEach((prize) => { prize.collected = prize !== first; });
   game.claw.x = 330;
   first.x = game.claw.x - first.width / 2;
   first.y = 545 - first.height;
@@ -56,10 +57,11 @@ const result = await evaluate(`(async () => {
   game.grab.attempt();
   await waitFor(() => game.claw.state === 'ready' || game.claw.state === 'game-over');
   const success = game.getSnapshot();
-  const collectedPrizes = game.state.prizes.filter(prize => prize.collected).length;
+  const collectedPrizes = first.collected ? 1 : 0;
 
   game.resetGame();
   const slipPrize = game.state.prizes.find(prize => prize.character.score > 0);
+  game.state.prizes.forEach((prize) => { prize.collected = prize !== slipPrize; });
   game.claw.x = 330;
   slipPrize.x = game.claw.x - slipPrize.width / 2;
   slipPrize.y = 545 - slipPrize.height;

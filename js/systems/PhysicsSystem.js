@@ -36,6 +36,62 @@ export class PhysicsSystem {
     return !prize.collected && [PokemonState.IDLE, PokemonState.SLIPPING, PokemonState.FALLING, PokemonState.SETTLING].includes(prize.state);
   }
 
+  getPrizeBodyBounds(prize) {
+    return {
+      left: prize.centerX - prize.bodyRadius,
+      right: prize.centerX + prize.bodyRadius,
+      top: prize.centerY - prize.bodyRadius,
+      bottom: prize.centerY + prize.bodyRadius,
+    };
+  }
+
+  isPrizeOccludingApproach(blocker, target, approachOrigin) {
+    if (blocker === target || !this.isPhysicsPrize(blocker)) return false;
+    const blockerBounds = this.getPrizeBodyBounds(blocker);
+    const targetBounds = this.getPrizeBodyBounds(target);
+    const horizontalOverlap = Math.min(blockerBounds.right, targetBounds.right)
+      - Math.max(blockerBounds.left, targetBounds.left);
+    const minimumOverlap = Math.max(2, Math.min(blocker.bodyRadius, target.bodyRadius) * 0.12);
+    if (horizontalOverlap <= minimumOverlap) return false;
+
+    const approachX = target.worldCenterOfMassX - approachOrigin.x;
+    const approachY = target.worldCenterOfMassY - approachOrigin.y;
+    const approachLengthSquared = approachX * approachX + approachY * approachY;
+    if (approachLengthSquared < 1) return false;
+    const blockerX = blocker.worldCenterOfMassX - approachOrigin.x;
+    const blockerY = blocker.worldCenterOfMassY - approachOrigin.y;
+    const progress = (blockerX * approachX + blockerY * approachY) / approachLengthSquared;
+    if (progress <= 0.02 || progress >= 0.98) return false;
+
+    const closestX = approachOrigin.x + approachX * progress;
+    const closestY = approachOrigin.y + approachY * progress;
+    const distanceFromApproach = Math.hypot(
+      blocker.worldCenterOfMassX - closestX,
+      blocker.worldCenterOfMassY - closestY,
+    );
+    const occlusionRadius = blocker.bodyRadius + Math.min(4, target.bodyRadius * 0.15);
+    return distanceFromApproach < occlusionRadius;
+  }
+
+  getApproachBlockers(target, approachOrigin) {
+    return this.state.prizes.filter((prize) => this.isPrizeOccludingApproach(prize, target, approachOrigin));
+  }
+
+  getPrizeExposure(target) {
+    const targetBounds = this.getPrizeBodyBounds(target);
+    const targetWidth = Math.max(1, targetBounds.right - targetBounds.left);
+    let maximumCoverage = 0;
+    for (const prize of this.state.prizes) {
+      if (prize === target || !this.isPhysicsPrize(prize) || prize.centerY >= target.centerY) continue;
+      const bounds = this.getPrizeBodyBounds(prize);
+      const overlap = Math.max(0, Math.min(bounds.right, targetBounds.right) - Math.max(bounds.left, targetBounds.left));
+      const verticalGap = Math.max(0, targetBounds.top - bounds.bottom);
+      const proximity = clamp(1 - verticalGap / Math.max(1, target.bodyRadius + prize.bodyRadius), 0, 1);
+      maximumCoverage = Math.max(maximumCoverage, overlap / targetWidth * proximity);
+    }
+    return clamp(1 - maximumCoverage, 0, 1);
+  }
+
   wake(prize) {
     prize.isSleeping = false;
     prize.sleepTimer = 0;
@@ -135,7 +191,17 @@ export class PhysicsSystem {
     this.updateGeometry(prize);
     this.resolveWorldBounds(prize);
     this.resolveChuteWalls(prize);
-    return { prize, colliderId: collider.id, penetration, impulse };
+    return {
+      prize,
+      colliderId: collider.id,
+      penetration,
+      impulse,
+      contactX: closest.x,
+      contactY: closest.y,
+      normalX,
+      normalY,
+      phase: motion.phase,
+    };
   }
 
   resolveClawCollisions(claw, motion = {}) {

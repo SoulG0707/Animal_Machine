@@ -348,6 +348,8 @@ export class Game {
       clawHeadX: this.claw.headX,
       clawVelocityX: this.claw.velocityX,
       clawSwingAngle: this.claw.swingAngle,
+      clawSwingVelocity: this.claw.swingVelocity,
+      clawHeadOffsetX: this.claw.headOffsetX,
       turnTimeRemaining: this.state.turnTimeRemaining,
       turnTimeMax: this.state.turnTimeMax,
       autoGrabTriggered: this.state.autoGrabTriggered,

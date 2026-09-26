@@ -81,10 +81,36 @@ export class GrabSystem {
     return { liftSpeedMultiplier, carrySpeedMultiplier, swingMultiplier };
   }
 
-  recordClawContacts(contacts) {
+  resetClawContacts() {
+    this.claw.contactCandidates.clear();
+    this.claw.contactHistory.clear();
+    this.claw.contactFrame = 0;
+    this.claw.contactHooksFired.clear();
+  }
+
+  recordClawContacts(contacts, phase = contacts[0]?.phase || 'unknown') {
+    if (!contacts.length) return;
+    const contactFrame = ++this.claw.contactFrame;
     contacts.forEach((contact) => {
       const prize = contact.prize;
       this.claw.contactCandidates.add(prize);
+      const existing = this.claw.contactHistory.get(prize);
+      if (existing) {
+        existing.lastFrame = contactFrame;
+        existing.lastPhase = phase;
+        existing.colliderIds.add(contact.colliderId);
+        existing.maximumPenetration = Math.max(existing.maximumPenetration, contact.penetration || 0);
+      } else {
+        this.claw.contactHistory.set(prize, {
+          firstFrame: contactFrame,
+          firstPhase: phase,
+          firstClawY: this.claw.y,
+          lastFrame: contactFrame,
+          lastPhase: phase,
+          colliderIds: new Set([contact.colliderId]),
+          maximumPenetration: contact.penetration || 0,
+        });
+      }
       const contactKey = `${prize.spawnIndex}:${contact.colliderId}`;
       if (this.claw.contactHooksFired.has(contactKey)) return;
       this.claw.contactHooksFired.add(contactKey);
@@ -94,6 +120,7 @@ export class GrabSystem {
 
   selectPrizeFromClosedClaw() {
     const zone = this.claw.getGrabZone();
+    const approachOrigin = { x: this.claw.headX, y: this.claw.homeY };
     return this.state.prizes
       .filter((prize) => this.physics.isPhysicsPrize(prize))
       .map((prize) => {
@@ -101,16 +128,36 @@ export class GrabSystem {
         const deltaY = prize.worldCenterOfMassY - zone.y;
         const localX = deltaX * zone.axisX + deltaY * zone.axisY;
         const localY = -deltaX * zone.axisY + deltaY * zone.axisX;
-        const betweenProngs = Math.abs(localX) <= zone.halfWidth + prize.bodyRadius * 0.42
-          && Math.abs(localY) <= zone.halfHeight + prize.bodyRadius * 0.55;
-        const contacted = this.claw.contactCandidates.has(prize);
+        const inGrabZone = Math.abs(localX) <= zone.halfWidth + prize.bodyRadius
+          && Math.abs(localY) <= zone.halfHeight + prize.bodyRadius;
+        const betweenProngs = Math.abs(localX) <= zone.halfWidth;
+        const contact = this.claw.contactHistory.get(prize);
+        const blockers = this.physics.getApproachBlockers(prize, approachOrigin);
         const evaluation = this.evaluateGrab(prize);
-        return { prize, betweenProngs, contacted, evaluation };
+        const approachDepth = Math.hypot(
+          prize.worldCenterOfMassX - approachOrigin.x,
+          prize.worldCenterOfMassY - approachOrigin.y,
+        ) - prize.bodyRadius;
+        return {
+          prize,
+          inGrabZone,
+          betweenProngs,
+          physicallyReachable: blockers.length === 0,
+          blockers,
+          contacted: Boolean(contact),
+          firstContactFrame: contact?.firstFrame ?? Number.POSITIVE_INFINITY,
+          exposure: this.physics.getPrizeExposure(prize),
+          approachDepth,
+          evaluation,
+        };
       })
-      .filter((candidate) => candidate.betweenProngs)
+      .filter((candidate) => candidate.inGrabZone && candidate.physicallyReachable)
       .sort((first, second) => Number(second.contacted) - Number(first.contacted)
+        || first.firstContactFrame - second.firstContactFrame
+        || Number(second.betweenProngs) - Number(first.betweenProngs)
+        || second.exposure - first.exposure
+        || first.approachDepth - second.approachDepth
         || second.evaluation.grabQuality - first.evaluation.grabQuality
-        || first.prize.worldCenterOfMassY - second.prize.worldCenterOfMassY
         || first.prize.spawnIndex - second.prize.spawnIndex)[0];
   }
 
@@ -147,6 +194,7 @@ export class GrabSystem {
         * (0.35 + (1 - evaluation.grabQuality) * 0.65)
         * clamp(prize.weight, 0.8, 1.3),
       lastPoseTime: time,
+      homeSettleFrames: null,
     };
     if (DEBUG_GRAB_PHYSICS) {
       console.table({
@@ -191,8 +239,7 @@ export class GrabSystem {
     this.claw.grabOffsetX = 0;
     this.claw.carryOffsetX = 0;
     this.claw.carryOffsetY = 0;
-    this.claw.contactCandidates.clear();
-    this.claw.contactHooksFired.clear();
+    this.resetClawContacts();
     this.ui.setGrabbing(true);
     this.ui.setPressed(this.ui.grabButton, true);
     this.ui.message.showStatus(status);
@@ -231,6 +278,7 @@ export class GrabSystem {
     const prize = this.claw.currentGrab?.pokemon;
     if (!prize || Math.abs(this.claw.x - this.claw.homeX) > 0.001
       || Math.abs(this.claw.velocityX) > 0.001
+      || !this.claw.isSwingSettledForDrop()
       || Math.abs(this.claw.headX - this.chute.centerX) >= 1.5
       || Math.abs(this.claw.headX + this.claw.carryOffsetX - this.chute.centerX) >= 1.5) return false;
     this.claw.x = this.claw.homeX;
@@ -314,7 +362,7 @@ export class GrabSystem {
           phase: 'descending',
           velocityY,
         });
-        this.recordClawContacts(contacts);
+        this.recordClawContacts(contacts, 'descending');
         if (this.claw.y >= this.claw.targetY) {
           this.claw.phaseElapsed = 0;
           this.claw.state = ClawState.CLOSING;
@@ -336,7 +384,7 @@ export class GrabSystem {
           closingSpeed,
           velocityY: 0,
         });
-        this.recordClawContacts(contacts);
+        this.recordClawContacts(contacts, 'closing');
         if (progress >= 1) {
           this.claw.openAmount = 0;
           const candidate = this.selectPrizeFromClosedClaw();
@@ -386,7 +434,11 @@ export class GrabSystem {
           grab?.carrySpeedMultiplier || 1,
         );
         if (grab?.willSlip && grab.slipDuringCarry && Math.abs(this.claw.x - grab.carryStartX) >= grab.carrySlipDistance) { this.beginGripSlip(); break; }
-        if (arrived) this.beginPrizeDrop();
+        if (arrived && grab) {
+          if (grab.homeSettleFrames === null) grab.homeSettleFrames = 0;
+          else grab.homeSettleFrames += 1;
+          if (grab.homeSettleFrames >= 1 && this.claw.isSwingSettledForDrop()) this.beginPrizeDrop();
+        }
         break;
       }
       case ClawState.SLIPPING:

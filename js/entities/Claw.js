@@ -33,8 +33,7 @@ export class Claw {
   }
 
   get headOffsetX() {
-    const rawOffset = Math.sin(this.swingAngle) * this.cableLength;
-    return Math.max(-CLAW_MOVEMENT.swing.maxHeadOffset, Math.min(CLAW_MOVEMENT.swing.maxHeadOffset, rawOffset));
+    return Math.sin(this.swingAngle) * this.cableLength;
   }
 
   get headX() {
@@ -130,14 +129,16 @@ export class Claw {
 
   updatePlayerMovement(direction, deltaSeconds) {
     if (deltaSeconds <= 0) return;
+    if (direction === 0 && this.velocityX !== 0) {
+      this.lockHorizontalMotion();
+      return;
+    }
     const previousVelocity = this.velocityX;
     if (direction !== 0) {
       const targetVelocity = Math.sign(direction) * CLAW_MOVEMENT.maxSpeed;
       const reversing = this.velocityX !== 0 && Math.sign(this.velocityX) !== Math.sign(direction);
       const rate = reversing ? CLAW_MOVEMENT.reverseAcceleration : CLAW_MOVEMENT.acceleration;
       this.velocityX = moveTowards(this.velocityX, targetVelocity, rate * deltaSeconds);
-    } else {
-      this.velocityX = moveTowards(this.velocityX, 0, CLAW_MOVEMENT.deceleration * deltaSeconds);
     }
     this.accelerationX = (this.velocityX - previousVelocity) / deltaSeconds;
     this.x += this.velocityX * deltaSeconds;
@@ -153,11 +154,43 @@ export class Claw {
     this.accelerationX = (this.velocityX - previousVelocity) / (1 / 60);
   }
 
-  lockHorizontalMotion() {
-    if (this.velocityX === 0) return;
-    const previousVelocity = this.velocityX;
+  transferMomentumToSwing(velocityX) {
+    if (velocityX === 0) return 0;
+    const swing = CLAW_MOVEMENT.swing;
+    const cableLength = Math.max(this.cableLength, swing.minimumMomentumCableLength);
+    const transferredVelocity = velocityX / cableLength * swing.releaseMomentumTransfer;
+    this.swingVelocity = Math.max(
+      -swing.maxReleaseAngularVelocity,
+      Math.min(
+        swing.maxReleaseAngularVelocity,
+        transferredVelocity + this.swingVelocity * swing.releaseVelocityRetention,
+      ),
+    );
+    return transferredVelocity;
+  }
+
+  lockHorizontalMotion({ applyCoast = true, transferMomentum = true } = {}) {
+    if (this.velocityX === 0) return 0;
+    const releaseVelocity = this.velocityX;
+    const previousX = this.x;
+    if (applyCoast) {
+      const coastDistance = Math.max(
+        -CLAW_MOVEMENT.releaseCoastMax,
+        Math.min(CLAW_MOVEMENT.releaseCoastMax, releaseVelocity * CLAW_MOVEMENT.releaseCoastTime),
+      );
+      this.x += coastDistance;
+      this.clampToRail();
+    }
     this.velocityX = 0;
-    this.accelerationX = -previousVelocity / CLAW_MOVEMENT.grabBrakeDuration;
+    this.accelerationX = 0;
+    if (transferMomentum) this.transferMomentumToSwing(releaseVelocity);
+    return this.x - previousX;
+  }
+
+  isSwingSettledForDrop() {
+    const swing = CLAW_MOVEMENT.swing;
+    return Math.abs(this.swingAngle) <= swing.dropSettleAngle
+      && Math.abs(this.swingVelocity) <= swing.dropSettleVelocity;
   }
 
   updateAutomaticMovement(targetX, deltaSeconds, profileName = 'return', speedMultiplier = 1) {
@@ -241,6 +274,8 @@ export class Claw {
     this.dropGrab = null;
     this.slipPhase = null;
     this.contactCandidates = new Set();
+    this.contactHistory = new Map();
+    this.contactFrame = 0;
     this.contactHooksFired = new Set();
     this.updateColliderGeometry();
   }

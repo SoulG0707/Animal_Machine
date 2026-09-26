@@ -77,7 +77,7 @@ const result = await evaluate(`(async () => {
   const directionChangeKeepsTimer = game.state.turnTimeRemaining < 12 && game.state.turnTimeRemaining > 11.5;
 
   game.claw.x = 318;
-  game.claw.lockHorizontalMotion();
+  game.claw.lockHorizontalMotion({ applyCoast: false, transferMomentum: false });
   game.state.turnTimeRemaining = 0.08;
   await waitFor(() => game.state.grabAttemptId === 1);
   const normalAuto = {

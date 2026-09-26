@@ -35,134 +35,170 @@ const evaluate = async (expression) => {
   return response.result?.result?.value;
 };
 const wait = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
-const key = (type, keyName, code) => send('Input.dispatchKeyEvent', {
-  type,
-  key: keyName,
-  code,
-  windowsVirtualKeyCode: keyName === 'ArrowLeft' ? 37 : 39,
-  nativeVirtualKeyCode: keyName === 'ArrowLeft' ? 37 : 39,
-});
 
 await send('Runtime.enable');
 await send('Page.enable');
-await send('Emulation.setDeviceMetricsOverride', { width: 1440, height: 900, deviceScaleFactor: 1, mobile: false });
+await send('Emulation.setDeviceMetricsOverride', {
+  width: 1440, height: 900, deviceScaleFactor: 1, mobile: false,
+});
 await send('Page.reload', { ignoreCache: true });
 await wait(900);
-await evaluate(`document.querySelector('#start-game-btn').click()`);
-await wait(120);
 
-await key('keyDown', 'ArrowRight', 'ArrowRight');
-await wait(50);
-const accelerationStart = await evaluate(`(async () => (await import('/js/main.js')).game.getSnapshot())()`);
-await wait(120);
-const accelerationMiddle = await evaluate(`(async () => (await import('/js/main.js')).game.getSnapshot())()`);
-await wait(260);
-const accelerationEnd = await evaluate(`(async () => (await import('/js/main.js')).game.getSnapshot())()`);
-await key('keyUp', 'ArrowRight', 'ArrowRight');
-const release = await evaluate(`(async () => (await import('/js/main.js')).game.getSnapshot())()`);
-await wait(180);
-const stopped = await evaluate(`(async () => (await import('/js/main.js')).game.getSnapshot())()`);
-await wait(1200);
-const settled = await evaluate(`(async () => (await import('/js/main.js')).game.getSnapshot())()`);
-
-await evaluate(`(async () => {
+const desktop = await evaluate(`(async () => {
   const { game } = await import('/js/main.js');
-  game.stopMoving();
-  game.claw.x = 300;
-  game.claw.velocityX = 280;
-  game.claw.swingAngle = 0;
-  game.claw.swingVelocity = 0;
-})()`);
-await key('keyDown', 'ArrowLeft', 'ArrowLeft');
-await wait(55);
-const reverseBeforeZero = await evaluate(`(async () => (await import('/js/main.js')).game.claw.velocityX)()`);
-await wait(120);
-const reverseAfterZero = await evaluate(`(async () => (await import('/js/main.js')).game.claw.velocityX)()`);
-await key('keyUp', 'ArrowLeft', 'ArrowLeft');
+  const { CLAW_MOVEMENT } = await import('/js/config/gameConfig.js');
+  document.querySelector('#start-game-btn').click();
+  game.loop.stop();
 
-const boundary = await evaluate(`(async () => {
-  const { game } = await import('/js/main.js');
-  game.stopMoving();
-  game.claw.x = 674;
-  game.claw.velocityX = 280;
-  game.claw.updatePlayerMovement(1, 1 / 30);
-  const first = { x: game.claw.x, velocity: game.claw.velocityX };
-  game.claw.updatePlayerMovement(1, 1 / 30);
-  return { first, second: { x: game.claw.x, velocity: game.claw.velocityX } };
-})()`);
+  const simulateRelease = (direction, holdFrames) => {
+    game.claw.reset();
+    game.claw.x = 360;
+    game.claw.state = 'ready';
+    const step = 1 / 60;
+    for (let frame = 0; frame < holdFrames; frame += 1) {
+      game.claw.updatePlayerMovement(direction, step);
+      game.claw.updateSwing(step);
+    }
+    const before = {
+      x: game.claw.x,
+      headX: game.claw.headX,
+      velocity: game.claw.velocityX,
+      angle: game.claw.swingAngle,
+    };
+    game.claw.updatePlayerMovement(0, step);
+    const released = {
+      x: game.claw.x,
+      headX: game.claw.headX,
+      velocity: game.claw.velocityX,
+      swingVelocity: game.claw.swingVelocity,
+    };
+    const samples = [];
+    let peakAngle = Math.abs(game.claw.swingAngle);
+    let previousSign = 0;
+    let reversals = 0;
+    for (let frame = 0; frame < 210; frame += 1) {
+      game.claw.updatePlayerMovement(0, step);
+      game.claw.updateSwing(step);
+      peakAngle = Math.max(peakAngle, Math.abs(game.claw.swingAngle));
+      const sign = Math.abs(game.claw.swingAngle) > 0.002 ? Math.sign(game.claw.swingAngle) : 0;
+      if (sign && previousSign && sign !== previousSign) reversals += 1;
+      if (sign) previousSign = sign;
+      if (frame < 8 || frame % 30 === 0) {
+        samples.push({ frame, x: game.claw.x, headX: game.claw.headX, angle: game.claw.swingAngle });
+      }
+    }
+    return {
+      before,
+      released,
+      coast: released.x - before.x,
+      firstHeadDelta: samples[0].headX - before.headX,
+      firstAngle: samples[0].angle,
+      peakAngle,
+      reversals,
+      finalAngle: game.claw.swingAngle,
+      finalVelocity: game.claw.swingVelocity,
+      samples,
+    };
+  };
 
-const carryHome = await evaluate(`(async () => {
-  const { game } = await import('/js/main.js');
-  game.stopMoving();
-  game.claw.reset();
-  game.claw.x = 560;
+  const holdRight = simulateRelease(1, 70);
+  const holdLeft = simulateRelease(-1, 70);
+  const tapRight = simulateRelease(1, 2);
+
+  game.resetGame();
+  game.loop.stop();
+  game.state.appState = 'playing';
+  game.state.prizes.forEach((prize) => { prize.collected = true; });
+  const target = game.state.prizes[0];
+  target.collected = false;
+  target.state = 'idle';
+  target.rotation = 0;
+  game.claw.x = 330;
+  game.claw.y = 400;
+  game.claw.state = 'ready';
+  game.claw.swingAngle = 6 * Math.PI / 180;
+  game.claw.swingVelocity = 0.24;
+  const centerOfMassOffset = target.getCenterOfMassOffset(0);
+  const intendedCenterOfMassX = game.claw.headX + 8;
+  const intendedCenterOfMassY = game.claw.headY + 31;
+  target.x = intendedCenterOfMassX - target.width / 2 - centerOfMassOffset.x;
+  target.y = intendedCenterOfMassY - target.height / 2 - centerOfMassOffset.y;
+  game.physics.updateGeometry(target);
+  const headBeforeGrab = game.claw.headX;
+  const evaluation = game.grab.evaluateGrab(target);
+  const grabStarted = game.grab.attempt();
+  const swingGrab = {
+    grabStarted,
+    perfect: evaluation.perfect,
+    headBeforeGrab,
+    headAfterGrab: game.claw.headX,
+    headDistance: Math.abs(target.worldCenterOfMassX - headBeforeGrab),
+    carriageDistance: Math.abs(target.worldCenterOfMassX - game.claw.x),
+  };
+
+  game.resetGame();
+  game.loop.stop();
+  game.state.appState = 'playing';
+  const carried = game.state.prizes[0];
+  game.state.prizes.forEach((prize) => { prize.collected = prize !== carried; });
+  carried.state = 'grabbed';
+  carried.collected = false;
+  game.claw.x = game.claw.homeX;
+  game.claw.y = game.claw.homeY;
+  game.claw.velocityX = 0;
+  game.claw.accelerationX = 0;
+  game.claw.swingAngle = 8 * Math.PI / 180;
+  game.claw.swingVelocity = 0.35;
+  game.claw.carryOffsetX = 0;
+  game.claw.carryOffsetY = 70;
+  game.claw.caught = carried;
   game.claw.state = 'carrying';
-  let minimumX = game.claw.x;
-  let arrivedFrame = null;
-  let releaseReadyFrame = null;
+  game.claw.currentGrab = {
+    pokemon: carried,
+    willSlip: false,
+    slipDuringCarry: false,
+    carrySpeedMultiplier: 1,
+    homeSettleFrames: null,
+    lastPoseTime: performance.now(),
+  };
+  let strongSwingState = null;
+  let releaseFrame = null;
+  let releaseAngle = null;
+  let releaseVelocity = null;
   for (let frame = 0; frame < 360; frame += 1) {
-    const arrived = game.claw.updateAutomaticMovement(game.claw.homeX, 1 / 60, 'carry');
     game.claw.updateSwing(1 / 60);
-    minimumX = Math.min(minimumX, game.claw.x);
-    if (arrived && arrivedFrame === null) arrivedFrame = frame;
-    if (arrived && Math.abs(game.claw.headX - game.claw.homeX) < 1.5) {
-      releaseReadyFrame = frame;
+    game.grab.update(frame * 1000 / 60, 1000 / 60);
+    if (frame === 0) strongSwingState = game.claw.state;
+    if (game.claw.state === 'releasing') {
+      releaseFrame = frame;
+      releaseAngle = game.claw.swingAngle;
+      releaseVelocity = game.claw.swingVelocity;
       break;
     }
   }
+  const carrySettle = {
+    strongSwingState,
+    releaseFrame,
+    releaseAngle,
+    releaseVelocity,
+    maxDropAngle: CLAW_MOVEMENT.swing.dropSettleAngle,
+    maxDropVelocity: CLAW_MOVEMENT.swing.dropSettleVelocity,
+  };
+
   return {
-    x: game.claw.x,
-    headX: game.claw.headX,
-    velocity: game.claw.velocityX,
-    minimumX,
-    arrivedFrame,
-    releaseReadyFrame,
+    holdRight,
+    holdLeft,
+    tapRight,
+    swingGrab,
+    carrySettle,
+    configuredMaxAngle: CLAW_MOVEMENT.swing.maxAngle,
+    configuredMaxCoast: CLAW_MOVEMENT.releaseCoastMax,
   };
 })()`);
-
-const actualHeadGrab = await evaluate(`(async () => {
-  const { game } = await import('/js/main.js');
-  game.resetGame();
-  game.state.prizes.forEach((prize) => { prize.collected = true; });
-  const prize = game.state.prizes[0];
-  prize.collected = false;
-  prize.state = 'idle';
-  game.claw.x = 330;
-  game.claw.y = 400;
-  game.claw.targetY = 470;
-  game.claw.swingAngle = 6 * Math.PI / 180;
-  game.claw.swingVelocity = 0;
-  prize.rotation = 0;
-  const centerOfMassOffset = prize.getCenterOfMassOffset(0);
-  const intendedCenterOfMassX = game.claw.headX + 8;
-  const intendedCenterOfMassY = game.claw.headY + 31;
-  prize.x = intendedCenterOfMassX - prize.width / 2 - centerOfMassOffset.x;
-  prize.y = intendedCenterOfMassY - prize.height / 2 - centerOfMassOffset.y;
-  game.physics.updateGeometry(prize);
-  const evaluation = game.grab.evaluateGrab(prize);
-  return {
-    perfect: evaluation.perfect,
-    headDistance: Math.abs(prize.worldCenterOfMassX - game.claw.headX),
-    carriageDistance: Math.abs(prize.worldCenterOfMassX - game.claw.x),
-  };
-})()`);
-
-const desktop = {
-  acceleration: [accelerationStart.clawVelocityX, accelerationMiddle.clawVelocityX, accelerationEnd.clawVelocityX],
-  inertiaDistance: stopped.clawX - release.clawX,
-  releasedVelocity: release.clawVelocityX,
-  stoppedVelocity: stopped.clawVelocityX,
-  swingAfterStop: stopped.clawSwingAngle,
-  swingSettled: settled.clawSwingAngle,
-  reverseBeforeZero,
-  reverseAfterZero,
-  boundary,
-  carryHome,
-  actualHeadGrab,
-};
 
 await send('Emulation.setDeviceMetricsOverride', {
-  width: 390, height: 844, deviceScaleFactor: 3, mobile: true, screenWidth: 390, screenHeight: 844,
+  width: 390, height: 844, deviceScaleFactor: 3, mobile: true,
+  screenWidth: 390, screenHeight: 844,
 });
 await send('Emulation.setTouchEmulationEnabled', { enabled: true, maxTouchPoints: 5 });
 await send('Page.reload', { ignoreCache: true });
@@ -177,11 +213,11 @@ await evaluate(`(async () => { const { game } = await import('/js/main.js'); gam
 await send('Input.dispatchTouchEvent', {
   type: 'touchStart', touchPoints: [{ ...points['right-btn'], radiusX: 4, radiusY: 4, force: 1 }],
 });
-await wait(350);
+await wait(420);
 await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 const mobileRelease = await evaluate(`(async () => (await import('/js/main.js')).game.getSnapshot())()`);
-await wait(180);
-const mobileStopped = await evaluate(`(async () => (await import('/js/main.js')).game.getSnapshot())()`);
+await wait(45);
+const mobileAfterRelease = await evaluate(`(async () => (await import('/js/main.js')).game.getSnapshot())()`);
 const turnsBeforeGrab = await evaluate(`(async () => (await import('/js/main.js')).game.state.turns)()`);
 await send('Input.dispatchTouchEvent', {
   type: 'touchStart', touchPoints: [{ ...points['drop-btn'], radiusX: 4, radiusY: 4, force: 1 }],
@@ -191,31 +227,47 @@ await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 await wait(60);
 const turnsAfterGrab = await evaluate(`(async () => (await import('/js/main.js')).game.state.turns)()`);
 const mobile = {
-  inertiaDistance: mobileStopped.clawX - mobileRelease.clawX,
-  releasedVelocity: mobileRelease.clawVelocityX,
-  stoppedVelocity: mobileStopped.clawVelocityX,
+  coast: mobileAfterRelease.clawX - mobileRelease.clawX,
+  stoppedVelocity: mobileAfterRelease.clawVelocityX,
+  swingVelocity: mobileAfterRelease.clawSwingVelocity,
+  headOffset: mobileAfterRelease.clawHeadOffsetX,
   turnsBeforeGrab,
   turnsAfterGrab,
 };
 
-const valid = desktop.acceleration[0] > 0
-  && desktop.acceleration[0] < desktop.acceleration[1]
-  && desktop.acceleration[1] < desktop.acceleration[2]
-  && desktop.inertiaDistance >= 4 && desktop.inertiaDistance <= 15
-  && Math.abs(desktop.stoppedVelocity) < 0.01
-  && Math.abs(desktop.swingAfterStop) > Math.abs(desktop.swingSettled)
-  && desktop.reverseBeforeZero > 0 && desktop.reverseAfterZero < 0
-  && desktop.boundary.first.x === 675 && desktop.boundary.first.velocity === 0
-  && desktop.boundary.second.x === 675 && desktop.boundary.second.velocity === 0
-  && desktop.carryHome.x === 112 && desktop.carryHome.velocity === 0
-  && desktop.carryHome.minimumX >= 112
-  && Math.abs(desktop.carryHome.headX - 112) < 1.5
-  && desktop.carryHome.releaseReadyFrame >= desktop.carryHome.arrivedFrame
-  && desktop.actualHeadGrab.perfect === true
-  && desktop.actualHeadGrab.headDistance <= 14
-  && desktop.actualHeadGrab.carriageDistance > 14
-  && mobile.inertiaDistance >= 4 && mobile.inertiaDistance <= 15
+const degrees = (radians) => radians * 180 / Math.PI;
+const valid = desktop.holdRight.before.velocity > 270
+  && desktop.holdRight.coast >= 0 && desktop.holdRight.coast <= 3
+  && desktop.holdRight.released.velocity === 0
+  && desktop.holdRight.released.swingVelocity > 0
+  && desktop.holdRight.firstHeadDelta > 0
+  && desktop.holdRight.reversals >= 2
+  && desktop.holdLeft.before.velocity < -270
+  && desktop.holdLeft.coast <= 0 && desktop.holdLeft.coast >= -3
+  && desktop.holdLeft.released.velocity === 0
+  && desktop.holdLeft.released.swingVelocity < 0
+  && desktop.holdLeft.firstHeadDelta < 0
+  && desktop.holdLeft.reversals >= 2
+  && desktop.tapRight.peakAngle < desktop.holdRight.peakAngle * 0.45
+  && degrees(desktop.holdRight.peakAngle) >= 7.5
+  && degrees(desktop.holdLeft.peakAngle) >= 7.5
+  && desktop.holdRight.peakAngle <= desktop.configuredMaxAngle + 0.0001
+  && desktop.holdLeft.peakAngle <= desktop.configuredMaxAngle + 0.0001
+  && degrees(desktop.configuredMaxAngle) === 10
+  && desktop.configuredMaxCoast <= 3
+  && desktop.swingGrab.grabStarted
+  && desktop.swingGrab.perfect
+  && Math.abs(desktop.swingGrab.headAfterGrab - desktop.swingGrab.headBeforeGrab) < 0.001
+  && desktop.swingGrab.headDistance <= 14
+  && desktop.swingGrab.carriageDistance > 14
+  && desktop.carrySettle.strongSwingState === 'carrying'
+  && desktop.carrySettle.releaseFrame > 1
+  && Math.abs(desktop.carrySettle.releaseAngle) <= desktop.carrySettle.maxDropAngle
+  && Math.abs(desktop.carrySettle.releaseVelocity) <= desktop.carrySettle.maxDropVelocity
+  && mobile.coast >= 0 && mobile.coast <= 3
   && Math.abs(mobile.stoppedVelocity) < 0.01
+  && mobile.swingVelocity > 0
+  && mobile.headOffset > 0
   && mobile.turnsAfterGrab === mobile.turnsBeforeGrab - 1
   && errors.length === 0;
 
