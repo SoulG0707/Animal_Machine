@@ -88,7 +88,7 @@
     display: grid;
     width: 100%;
     align-self: stretch;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     align-items: start;
     gap: 10px;
     padding: 10px;
@@ -111,9 +111,10 @@
   .mission-progress-row { font-size: 9px; }
   .mission-progress-row span:last-child { font-size: 8px; }
 
-  .score-block .eyebrow, .turns-block .eyebrow { margin-bottom: var(--space-2); font-size: 9px; }
-  .score-block strong, .turns-block strong { font-size: clamp(42px, 11vw, 54px); }
-  .score-block > span { margin-top: var(--space-2); font-size: 9px; }
+  .score-block .eyebrow, .turns-block .eyebrow, .timer-block .eyebrow { margin-bottom: var(--space-2); font-size: 8px; }
+  .score-block strong, .turns-block strong, .timer-block strong { font-size: clamp(34px, 9vw, 48px); }
+  .score-block > span, .timer-block > span { margin-top: var(--space-2); font-size: 8px; }
+  .timer-block { margin-top: 0; }
   .turn-pips { gap: 4px; margin-top: 8px; }
   .turn-pips i { width: 15px; }
   .divider { display: none; }

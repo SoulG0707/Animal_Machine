@@ -1,4 +1,4 @@
-import { CLAW_MOVEMENT } from '../config/gameConfig.js';
+import { CLAW_COLLISION, CLAW_MOVEMENT, GAME_CONFIG } from '../config/gameConfig.js';
 import { ClawState } from '../core/GameState.js';
 
 function moveTowards(current, target, maxStep) {
@@ -15,6 +15,16 @@ export class Claw {
     this.maxSpeed = CLAW_MOVEMENT.maxSpeed;
     this.acceleration = CLAW_MOVEMENT.acceleration;
     this.deceleration = CLAW_MOVEMENT.deceleration;
+    this.colliders = {
+      head: { id: 'head', type: 'circle', x: 0, y: 0, radius: 0 },
+      leftProng: { id: 'left-prong', type: 'capsule', ax: 0, ay: 0, bx: 0, by: 0, radius: 0 },
+      rightProng: { id: 'right-prong', type: 'capsule', ax: 0, ay: 0, bx: 0, by: 0, radius: 0 },
+      grabZone: {
+        id: 'grab-zone', type: 'box', x: 0, y: 0,
+        axisX: 1, axisY: 0, halfWidth: 0, halfHeight: 0,
+      },
+    };
+    this.activeColliders = [this.colliders.head, this.colliders.leftProng, this.colliders.rightProng];
     this.reset();
   }
 
@@ -33,6 +43,79 @@ export class Claw {
 
   get headY() {
     return this.y;
+  }
+
+  get bodyAngle() {
+    return this.swingAngle * 0.16;
+  }
+
+  localToWorld(localX, localY, output = {}) {
+    const scaledX = localX * GAME_CONFIG.clawScale;
+    const scaledY = localY * GAME_CONFIG.clawScale;
+    const cosine = Math.cos(this.bodyAngle);
+    const sine = Math.sin(this.bodyAngle);
+    output.x = this.headX + scaledX * cosine - scaledY * sine;
+    output.y = this.headY + scaledX * sine + scaledY * cosine;
+    return output;
+  }
+
+  worldToLocal(worldX, worldY, output = {}) {
+    const deltaX = worldX - this.headX;
+    const deltaY = worldY - this.headY;
+    const cosine = Math.cos(this.bodyAngle);
+    const sine = Math.sin(this.bodyAngle);
+    output.x = (deltaX * cosine + deltaY * sine) / GAME_CONFIG.clawScale;
+    output.y = (-deltaX * sine + deltaY * cosine) / GAME_CONFIG.clawScale;
+    return output;
+  }
+
+  updateColliderGeometry() {
+    const collision = CLAW_COLLISION;
+    const scale = GAME_CONFIG.clawScale;
+    const spread = collision.spreadBase + this.openAmount * collision.spreadRange;
+    const head = this.colliders.head;
+    this.localToWorld(0, collision.headCenterY, head);
+    head.radius = collision.headRadius * scale;
+
+    const left = this.colliders.leftProng;
+    const right = this.colliders.rightProng;
+    this.localToWorld(-collision.prongBaseX - spread, collision.prongTopY, left);
+    left.ax = left.x; left.ay = left.y;
+    this.localToWorld(-collision.prongBaseX - spread - collision.prongFootX, collision.prongBottomY, left);
+    left.bx = left.x; left.by = left.y; left.radius = collision.prongRadius * scale;
+    this.localToWorld(collision.prongBaseX + spread, collision.prongTopY, right);
+    right.ax = right.x; right.ay = right.y;
+    this.localToWorld(collision.prongBaseX + spread + collision.prongFootX, collision.prongBottomY, right);
+    right.bx = right.x; right.by = right.y; right.radius = collision.prongRadius * scale;
+
+    const zone = this.colliders.grabZone;
+    this.localToWorld(0, collision.grabZoneCenterY, zone);
+    zone.axisX = Math.cos(this.bodyAngle);
+    zone.axisY = Math.sin(this.bodyAngle);
+    zone.halfWidth = (collision.grabZoneBaseHalfWidth + spread) * scale;
+    zone.halfHeight = collision.grabZoneHalfHeight * scale;
+    return this.colliders;
+  }
+
+  getPhysicalColliders() {
+    this.updateColliderGeometry();
+    return this.activeColliders;
+  }
+
+  getGrabZone() {
+    this.updateColliderGeometry();
+    return this.colliders.grabZone;
+  }
+
+  getColliderBounds() {
+    this.updateColliderGeometry();
+    const { head, leftProng, rightProng } = this.colliders;
+    return {
+      left: Math.min(head.x - head.radius, leftProng.ax - leftProng.radius, leftProng.bx - leftProng.radius, rightProng.ax - rightProng.radius, rightProng.bx - rightProng.radius),
+      right: Math.max(head.x + head.radius, leftProng.ax + leftProng.radius, leftProng.bx + leftProng.radius, rightProng.ax + rightProng.radius, rightProng.bx + rightProng.radius),
+      top: Math.min(head.y - head.radius, leftProng.ay - leftProng.radius, rightProng.ay - rightProng.radius),
+      bottom: Math.max(head.y + head.radius, leftProng.by + leftProng.radius, rightProng.by + rightProng.radius),
+    };
   }
 
   clampToRail() {
@@ -148,7 +231,7 @@ export class Claw {
     this.state = ClawState.READY;
     this.caught = null;
     this.currentGrab = null;
-    this.openAmount = 1;
+    this.openAmount = CLAW_COLLISION.readyOpenAmount;
     this.phaseElapsed = 0;
     this.carryOffsetX = 0;
     this.grabOffsetX = 0;
@@ -157,5 +240,8 @@ export class Claw {
     this.droppingPrize = null;
     this.dropGrab = null;
     this.slipPhase = null;
+    this.contactCandidates = new Set();
+    this.contactHooksFired = new Set();
+    this.updateColliderGeometry();
   }
 }

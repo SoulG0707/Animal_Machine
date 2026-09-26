@@ -2,6 +2,8 @@ export class GameHUD {
   constructor(root = document) {
     this.score = root.querySelector('#score');
     this.turns = root.querySelector('#turns');
+    this.timer = root.querySelector('#turn-timer');
+    this.timerBlock = root.querySelector('.timer-block');
     this.best = root.querySelector('#best-score');
     this.turnPips = root.querySelector('#turn-pips');
     this.combo = root.querySelector('#combo-display');
@@ -16,6 +18,7 @@ export class GameHUD {
   render(state, level, experienceToNext) {
     this.score.textContent = String(state.score).padStart(3, '0');
     this.turns.textContent = String(state.turns).padStart(2, '0');
+    this.renderTimer(state.turnTimeRemaining);
     this.best.textContent = String(state.bestScore).padStart(3, '0');
     this.turnPips.querySelectorAll('i').forEach((pip, index) => pip.classList.toggle('empty', index >= state.turns));
     const multiplier = Math.min(state.currentCombo, 3);
@@ -23,6 +26,13 @@ export class GameHUD {
     if (state.currentCombo >= 2) this.combo.textContent = `COMBO ×${multiplier}`;
     this.trainerLevel.textContent = `LV ${level}`;
     this.trainerLevel.title = `${state.trainerXp} XP · ${experienceToNext} XP to next level`;
+  }
+
+  renderTimer(secondsRemaining) {
+    const seconds = Math.max(0, Math.ceil(secondsRemaining));
+    const text = String(seconds).padStart(2, '0');
+    if (this.timer.textContent !== text) this.timer.textContent = text;
+    this.timerBlock.classList.toggle('is-urgent', seconds > 0 && seconds <= 5);
   }
 
   renderMission(mission) {
@@ -49,5 +59,8 @@ export class GameHUD {
     this.score.classList.add('score-pop');
   }
 
-  resetEffects() { this.combo.classList.remove('combo-pop'); }
+  resetEffects() {
+    this.combo.classList.remove('combo-pop');
+    this.timerBlock.classList.remove('is-urgent');
+  }
 }

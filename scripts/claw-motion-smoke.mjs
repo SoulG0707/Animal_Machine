@@ -122,7 +122,6 @@ const carryHome = await evaluate(`(async () => {
 
 const actualHeadGrab = await evaluate(`(async () => {
   const { game } = await import('/js/main.js');
-  const originalRandom = Math.random;
   game.resetGame();
   game.state.prizes.forEach((prize) => { prize.collected = true; });
   const prize = game.state.prizes[0];
@@ -140,12 +139,9 @@ const actualHeadGrab = await evaluate(`(async () => {
   prize.x = intendedCenterOfMassX - prize.width / 2 - centerOfMassOffset.x;
   prize.y = intendedCenterOfMassY - prize.height / 2 - centerOfMassOffset.y;
   game.physics.updateGeometry(prize);
-  game.claw.state = 'descending';
-  Math.random = () => 0.99;
-  game.grab.update(performance.now(), 0);
-  Math.random = originalRandom;
+  const evaluation = game.grab.evaluateGrab(prize);
   return {
-    perfect: game.claw.currentGrab?.perfect,
+    perfect: evaluation.perfect,
     headDistance: Math.abs(prize.worldCenterOfMassX - game.claw.headX),
     carriageDistance: Math.abs(prize.worldCenterOfMassX - game.claw.x),
   };

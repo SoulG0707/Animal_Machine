@@ -1,4 +1,4 @@
-import { GAME_CONFIG, RARITY_COLORS } from '../config/gameConfig.js';
+import { DEBUG_CLAW_COLLIDERS, GAME_CONFIG, RARITY_COLORS } from '../config/gameConfig.js';
 import { PokemonState } from '../core/GameState.js';
 
 export class RenderSystem {
@@ -179,6 +179,46 @@ export class RenderSystem {
         context.drawImage(prize.character.image, -prize.width / 2, -prize.height / 2, prize.width, prize.height); context.restore();
       } else this.drawPixelPokeball(prize);
     }
+    if (DEBUG_CLAW_COLLIDERS) this.drawClawColliders();
+  }
+
+  drawClawColliders() {
+    const { context, claw } = this;
+    const { head, leftProng, rightProng, grabZone } = claw.updateColliderGeometry();
+    context.save();
+    context.globalAlpha = 0.88;
+    context.lineWidth = 2;
+    context.strokeStyle = '#ff2f78';
+    context.beginPath();
+    context.arc(head.x, head.y, head.radius, 0, Math.PI * 2);
+    context.stroke();
+
+    context.strokeStyle = '#20a4f3';
+    context.lineWidth = leftProng.radius * 2;
+    context.lineCap = 'round';
+    context.beginPath();
+    context.moveTo(leftProng.ax, leftProng.ay);
+    context.lineTo(leftProng.bx, leftProng.by);
+    context.moveTo(rightProng.ax, rightProng.ay);
+    context.lineTo(rightProng.bx, rightProng.by);
+    context.stroke();
+    context.globalAlpha = 1;
+    context.strokeStyle = '#fff';
+    context.lineWidth = 1;
+    context.stroke();
+
+    context.translate(grabZone.x, grabZone.y);
+    context.rotate(Math.atan2(grabZone.axisY, grabZone.axisX));
+    context.strokeStyle = '#55d66b';
+    context.lineWidth = 2;
+    context.setLineDash([5, 4]);
+    context.strokeRect(
+      -grabZone.halfWidth,
+      -grabZone.halfHeight,
+      grabZone.halfWidth * 2,
+      grabZone.halfHeight * 2,
+    );
+    context.restore();
   }
 
   spawnCatchParticles(prize) {

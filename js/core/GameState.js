@@ -42,6 +42,9 @@ export class GameState {
     this.particles = [];
     this.lastTime = 0;
     this.movementInput = { left: false, right: false };
+    this.turnTimeMax = 0;
+    this.turnTimeRemaining = 0;
+    this.autoGrabTriggered = false;
     this.selectedCharacter = null;
     this.mission = null;
     this.resetRun();
@@ -60,5 +63,7 @@ export class GameState {
     this.sessionCaughtSpecies = new Set();
     this.particles = [];
     this.grabAttemptId = 0;
+    this.turnTimeRemaining = this.turnTimeMax;
+    this.autoGrabTriggered = false;
   }
 }

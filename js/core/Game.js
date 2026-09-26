@@ -55,6 +55,7 @@ export class Game {
       renderer: this.renderer,
       refresh: (options) => this.refresh(options),
       finishGame: () => this.finishGame(),
+      onTurnReady: () => this.resetTurnTimer(),
     });
     this.bindUI();
     this.bindInput();
@@ -76,7 +77,10 @@ export class Game {
       onReset: () => this.resetAllSavedData(),
       onModeSelect: (mode) => {
         const selected = this.difficulty.select(mode);
-        if (selected) this.refreshStartScreen();
+        if (selected) {
+          this.resetTurnTimer();
+          this.refreshStartScreen();
+        }
         return selected;
       },
       getMode: () => this.state.mode,
@@ -92,6 +96,10 @@ export class Game {
       this.resetCurrentRun();
       this.resumeGame();
       this.ui.grabButton.focus({ preventScroll: true });
+    });
+    document.addEventListener('visibilitychange', () => {
+      this.stopMoving();
+      this.state.lastTime = 0;
     });
   }
 
@@ -146,10 +154,30 @@ export class Game {
     this.claw.nudge(direction);
   }
 
-  attemptGrab() {
+  attemptGrab({ automatic = false } = {}) {
     if (!this.canMove()) return false;
+    this.state.autoGrabTriggered = true;
     this.stopMoving();
-    return this.grab.attempt();
+    const started = this.grab.attempt({ status: automatic ? 'AUTO GRAB!' : 'GRABBING...' });
+    if (!started) this.state.autoGrabTriggered = false;
+    return started;
+  }
+
+  resetTurnTimer() {
+    this.state.turnTimeMax = this.difficulty.current.turnTime;
+    this.state.turnTimeRemaining = this.state.turnTimeMax;
+    this.state.autoGrabTriggered = false;
+    this.ui?.hud.renderTimer(this.state.turnTimeRemaining);
+  }
+
+  updateTurnTimer(step) {
+    if (document.hidden || this.claw.state !== ClawState.READY || this.state.autoGrabTriggered) return;
+    this.state.turnTimeRemaining = Math.max(0, this.state.turnTimeRemaining - step);
+    this.ui.hud.renderTimer(this.state.turnTimeRemaining);
+    if (this.state.turnTimeRemaining > 0) return;
+    this.state.autoGrabTriggered = true;
+    this.stopMoving();
+    this.attemptGrab({ automatic: true });
   }
 
   startGame() {
@@ -207,6 +235,7 @@ export class Game {
     this.chute.reset();
     this.state.particles = [];
     this.state.lastTime = 0;
+    this.resetTurnTimer();
     this.ui.message.reset();
     this.ui.clearPressed();
     this.ui.setGrabbing(false);
@@ -247,6 +276,7 @@ export class Game {
     this.ui.clearPressed();
     this.ui.hud.resetEffects();
     this.ui.setGrabbing(false);
+    this.resetTurnTimer();
     this.spawn.createPrizes();
     this.missions.start();
     this.refresh({ pokedex: true });
@@ -285,13 +315,17 @@ export class Game {
   }
 
   update(time) {
-    if (this.state.appState !== AppState.PLAYING) return;
+    if (this.state.appState !== AppState.PLAYING || document.hidden) {
+      this.state.lastTime = 0;
+      return;
+    }
     const elapsed = this.state.lastTime ? Math.min(time - this.state.lastTime, 50) : 0;
     this.state.lastTime = time;
     const step = elapsed / 1000;
     if (this.claw.state === ClawState.READY) {
+      this.updateTurnTimer(step);
       const direction = Number(this.state.movementInput.right) - Number(this.state.movementInput.left);
-      this.claw.updatePlayerMovement(direction, step);
+      if (this.claw.state === ClawState.READY) this.claw.updatePlayerMovement(direction, step);
     }
     this.claw.updateSwing(step);
     this.grab.update(time, elapsed);
@@ -314,6 +348,9 @@ export class Game {
       clawHeadX: this.claw.headX,
       clawVelocityX: this.claw.velocityX,
       clawSwingAngle: this.claw.swingAngle,
+      turnTimeRemaining: this.state.turnTimeRemaining,
+      turnTimeMax: this.state.turnTimeMax,
+      autoGrabTriggered: this.state.autoGrabTriggered,
       prizeCount: this.state.prizes.length,
       mission: this.state.mission ? { ...this.state.mission } : null,
     };

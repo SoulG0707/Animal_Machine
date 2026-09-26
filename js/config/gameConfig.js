@@ -61,6 +61,33 @@ export const CLAW_MOVEMENT = Object.freeze({
 });
 
 export const DEBUG_GRAB_PHYSICS = false;
+export const DEBUG_CLAW_COLLIDERS = false;
+
+export const CLAW_COLLISION = Object.freeze({
+  readyOpenAmount: 0.7,
+  headCenterY: 3,
+  headRadius: 18,
+  prongTopY: 10,
+  prongBottomY: 36,
+  prongBaseX: 10,
+  prongFootX: 3,
+  prongRadius: 5,
+  spreadBase: 6,
+  spreadRange: 9,
+  grabZoneCenterY: 27,
+  grabZoneHalfHeight: 21,
+  grabZoneBaseHalfWidth: 12,
+  descentImpactFactor: 0.045,
+  glancingImpactFactor: 0.014,
+  closingImpactFactor: 0.07,
+  maxPushImpulse: 24,
+  maxPushVelocity: 72,
+  maxPositionCorrection: 3.2,
+  angularImpactFactor: 0.0014,
+  angularFrictionFactor: 0.00014,
+  floorClearance: 3,
+  obstacleClearance: 2,
+});
 
 export const GRAB_PHYSICS = Object.freeze({
   gripPointOffsetY: 31,

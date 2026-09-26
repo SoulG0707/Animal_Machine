@@ -1,5 +1,18 @@
-import { ANIMATION, PHYSICS } from '../config/gameConfig.js';
+import { ANIMATION, CLAW_COLLISION, PHYSICS } from '../config/gameConfig.js';
 import { PokemonState } from '../core/GameState.js';
+import { clamp } from '../utils/math.js';
+
+function closestPointOnSegment(pointX, pointY, startX, startY, endX, endY, output) {
+  const segmentX = endX - startX;
+  const segmentY = endY - startY;
+  const lengthSquared = segmentX * segmentX + segmentY * segmentY;
+  const progress = lengthSquared > 0
+    ? clamp(((pointX - startX) * segmentX + (pointY - startY) * segmentY) / lengthSquared, 0, 1)
+    : 0;
+  output.x = startX + segmentX * progress;
+  output.y = startY + segmentY * progress;
+  return output;
+}
 
 export class PhysicsSystem {
   constructor(state, machine, chute, prizeBounds) {
@@ -7,6 +20,7 @@ export class PhysicsSystem {
     this.machine = machine;
     this.chute = chute;
     this.prizeBounds = prizeBounds;
+    this.clawContactPoint = { x: 0, y: 0 };
   }
 
   updateGeometry(prize) {
@@ -25,6 +39,122 @@ export class PhysicsSystem {
   wake(prize) {
     prize.isSleeping = false;
     prize.sleepTimer = 0;
+  }
+
+  getClawDescentLimit(claw, desiredY) {
+    const bounds = claw.getColliderBounds();
+    const bottomOffset = bounds.bottom - claw.headY;
+    let limit = Math.min(desiredY, this.machine.floorY - bottomOffset - CLAW_COLLISION.floorClearance);
+    const obstacles = [
+      this.chute.divider,
+      this.chute.walls.left,
+      this.chute.walls.right,
+      this.chute.walls.leftLip,
+      this.chute.walls.rightLip,
+    ];
+    obstacles.forEach((obstacle) => {
+      const overlapsHorizontally = bounds.right > obstacle.x && bounds.left < obstacle.x + obstacle.width;
+      if (!overlapsHorizontally || obstacle.y <= claw.homeY) return;
+      limit = Math.min(limit, obstacle.y - bottomOffset - CLAW_COLLISION.obstacleClearance);
+    });
+    return Math.max(claw.homeY, limit);
+  }
+
+  resolveClawContact(prize, collider, motion) {
+    const closest = collider.type === 'circle'
+      ? collider
+      : closestPointOnSegment(
+        prize.centerX, prize.centerY,
+        collider.ax, collider.ay, collider.bx, collider.by,
+        this.clawContactPoint,
+      );
+    let deltaX = prize.centerX - closest.x;
+    let deltaY = prize.centerY - closest.y;
+    let distance = Math.hypot(deltaX, deltaY);
+    const minimumDistance = prize.bodyRadius + collider.radius;
+    if (distance >= minimumDistance) return null;
+
+    if (distance < 0.001) {
+      if (collider.id === 'left-prong') deltaX = prize.centerX >= motion.headX ? 1 : -1;
+      else if (collider.id === 'right-prong') deltaX = prize.centerX <= motion.headX ? -1 : 1;
+      else deltaY = 1;
+      distance = 1;
+    }
+    const normalX = deltaX / distance;
+    const normalY = deltaY / distance;
+    const penetration = minimumDistance - distance;
+    const weightResistance = 1 / Math.sqrt(prize.weight);
+    const correction = Math.min(
+      penetration * 0.48,
+      CLAW_COLLISION.maxPositionCorrection * weightResistance,
+    );
+
+    this.wake(prize);
+    prize.x += normalX * correction;
+    prize.y += normalY * correction;
+
+    let kinematicX = 0;
+    if (motion.phase === 'closing') {
+      if (collider.id === 'left-prong') kinematicX = motion.closingSpeed;
+      if (collider.id === 'right-prong') kinematicX = -motion.closingSpeed;
+    }
+    const approachSpeed = Math.max(0, kinematicX * normalX + motion.velocityY * normalY);
+    const phaseFactor = motion.phase === 'closing'
+      ? CLAW_COLLISION.closingImpactFactor
+      : CLAW_COLLISION.descentImpactFactor;
+    const glancingImpulse = Math.abs(motion.velocityY)
+      * CLAW_COLLISION.glancingImpactFactor * Math.abs(normalX);
+    const impulse = clamp(
+      (approachSpeed * phaseFactor + glancingImpulse) / prize.weight,
+      0,
+      CLAW_COLLISION.maxPushImpulse,
+    );
+    prize.velocityX = clamp(
+      prize.velocityX + normalX * impulse,
+      -CLAW_COLLISION.maxPushVelocity,
+      CLAW_COLLISION.maxPushVelocity,
+    );
+    prize.velocityY = clamp(
+      prize.velocityY + normalY * impulse,
+      -CLAW_COLLISION.maxPushVelocity,
+      CLAW_COLLISION.maxPushVelocity * 1.35,
+    );
+    const leverX = closest.x - prize.centerX;
+    const leverY = closest.y - prize.centerY;
+    const tangentX = -normalY;
+    const tangentY = normalX;
+    const tangentialSpeed = kinematicX * tangentX + motion.velocityY * tangentY;
+    const torque = ((leverX * normalY - leverY * normalX)
+      * impulse * CLAW_COLLISION.angularImpactFactor
+      + tangentialSpeed * CLAW_COLLISION.angularFrictionFactor) / prize.weight;
+    prize.angularVelocity = clamp(
+      prize.angularVelocity + torque,
+      -PHYSICS.maxAngularVelocity,
+      PHYSICS.maxAngularVelocity,
+    );
+    this.updateGeometry(prize);
+    this.resolveWorldBounds(prize);
+    this.resolveChuteWalls(prize);
+    return { prize, colliderId: collider.id, penetration, impulse };
+  }
+
+  resolveClawCollisions(claw, motion = {}) {
+    const colliders = claw.getPhysicalColliders();
+    const contacts = [];
+    const resolvedMotion = {
+      phase: motion.phase || 'descending',
+      velocityY: motion.velocityY || 0,
+      closingSpeed: motion.closingSpeed || 0,
+      headX: claw.headX,
+    };
+    for (const prize of this.state.prizes) {
+      if (!this.isPhysicsPrize(prize)) continue;
+      for (const collider of colliders) {
+        const contact = this.resolveClawContact(prize, collider, resolvedMotion);
+        if (contact) contacts.push(contact);
+      }
+    }
+    return contacts;
   }
 
   resolveWorldBounds(prize) {
