@@ -153,9 +153,15 @@ export class RenderSystem {
 
   drawClaw(time) {
     const { context, claw } = this;
-    const x = Math.round(claw.x); const y = Math.round(claw.y);
-    context.fillStyle = '#243346'; context.fillRect(x - 3, 0, 6, Math.max(0, y - 7));
-    context.save(); context.translate(x, y); context.scale(GAME_CONFIG.clawScale, GAME_CONFIG.clawScale);
+    const anchorX = Math.round(claw.x);
+    const headX = claw.headX;
+    const y = claw.headY;
+    context.save();
+    context.strokeStyle = '#243346'; context.lineWidth = 6; context.lineCap = 'butt';
+    context.beginPath(); context.moveTo(anchorX, 0); context.lineTo(headX, Math.max(0, y - 7)); context.stroke();
+    context.fillStyle = '#243346'; context.fillRect(anchorX - 10, 0, 20, 7);
+    context.restore();
+    context.save(); context.translate(headX, y); context.rotate(claw.swingAngle * 0.16); context.scale(GAME_CONFIG.clawScale, GAME_CONFIG.clawScale);
     context.fillStyle = '#243346'; context.fillRect(-34, -8, 68, 23);
     context.fillStyle = '#e6464d'; context.fillRect(-28, -4, 56, 14);
     context.fillStyle = '#ffd342'; context.fillRect(-5, -2, 10, 9);
@@ -169,8 +175,7 @@ export class RenderSystem {
     if (claw.caught) {
       const prize = claw.caught;
       if (prize.character.loaded) {
-        const swayAngle = Math.sin((time - claw.grabStartedAt) * 0.007) * 0.035;
-        context.save(); context.translate(prize.centerX, prize.centerY); context.rotate(swayAngle);
+        context.save(); context.translate(prize.centerX, prize.centerY); context.rotate(prize.rotation || 0);
         context.drawImage(prize.character.image, -prize.width / 2, -prize.height / 2, prize.width, prize.height); context.restore();
       } else this.drawPixelPokeball(prize);
     }

@@ -100,9 +100,10 @@ export class Game {
       canMove: () => this.canMove(),
       isGameplayActive: () => this.state.appState === AppState.PLAYING,
       startMoving: (direction) => this.startMoving(direction),
-      stopMoving: () => this.stopMoving(),
+      stopMoving: (direction) => this.stopMoving(direction),
+      setMovementInput: (direction, active) => this.setMovementInput(direction, active),
       stepMove: (direction) => this.stepMove(direction),
-      attemptGrab: () => this.grab.attempt(),
+      attemptGrab: () => this.attemptGrab(),
     };
     this.touchInput = new TouchInput(this.ui, api);
     this.keyboardInput = new KeyboardInput(this.ui, api);
@@ -115,18 +116,40 @@ export class Game {
   }
 
   startMoving(direction) {
-    if (this.canMove()) this.state.heldDirection = direction;
+    this.setMovementInput(direction, true);
   }
 
-  stopMoving() {
-    this.state.heldDirection = 0;
-    this.ui.setPressed(this.ui.leftButton, false);
-    this.ui.setPressed(this.ui.rightButton, false);
+  setMovementInput(direction, active) {
+    const side = direction < 0 ? 'left' : 'right';
+    if (active && !this.canMove()) return false;
+    this.state.movementInput[side] = Boolean(active);
+    return true;
+  }
+
+  stopMoving(direction = 0) {
+    if (direction < 0) {
+      this.state.movementInput.left = false;
+      this.ui.setPressed(this.ui.leftButton, false);
+    } else if (direction > 0) {
+      this.state.movementInput.right = false;
+      this.ui.setPressed(this.ui.rightButton, false);
+    } else {
+      this.state.movementInput.left = false;
+      this.state.movementInput.right = false;
+      this.ui.setPressed(this.ui.leftButton, false);
+      this.ui.setPressed(this.ui.rightButton, false);
+    }
   }
 
   stepMove(direction) {
     if (!this.canMove()) return;
-    this.claw.x = Math.max(45, Math.min(MACHINE.width - 45, this.claw.x + direction * 62));
+    this.claw.nudge(direction);
+  }
+
+  attemptGrab() {
+    if (!this.canMove()) return false;
+    this.stopMoving();
+    return this.grab.attempt();
   }
 
   startGame() {
@@ -264,11 +287,15 @@ export class Game {
   update(time) {
     if (this.state.appState !== AppState.PLAYING) return;
     const elapsed = this.state.lastTime ? Math.min(time - this.state.lastTime, 50) : 0;
-    if (this.claw.state === ClawState.READY && this.state.heldDirection !== 0) {
-      this.claw.x = Math.max(45, Math.min(MACHINE.width - 45, this.claw.x + this.state.heldDirection * elapsed * 0.28));
-    }
     this.state.lastTime = time;
+    const step = elapsed / 1000;
+    if (this.claw.state === ClawState.READY) {
+      const direction = Number(this.state.movementInput.right) - Number(this.state.movementInput.left);
+      this.claw.updatePlayerMovement(direction, step);
+    }
+    this.claw.updateSwing(step);
     this.grab.update(time, elapsed);
+    this.grab.updateCarriedPrize(time);
     this.physics.update(elapsed);
     this.renderer.render(time, elapsed);
   }
@@ -284,6 +311,9 @@ export class Game {
       appState: this.state.appState,
       clawState: this.claw.state,
       clawX: this.claw.x,
+      clawHeadX: this.claw.headX,
+      clawVelocityX: this.claw.velocityX,
+      clawSwingAngle: this.claw.swingAngle,
       prizeCount: this.state.prizes.length,
       mission: this.state.mission ? { ...this.state.mission } : null,
     };

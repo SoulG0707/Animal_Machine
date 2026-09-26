@@ -21,6 +21,10 @@ export class Pokemon {
       rotation,
       angularVelocity,
       bodyRadius: radius,
+      weight: character.weight ?? 1,
+      grip: character.grip ?? 0.8,
+      centerOfMassX: character.centerOfMassX ?? 0.5,
+      centerOfMassY: character.centerOfMassY ?? 0.5,
       mass,
       inverseMass: 1 / mass,
       restitution,
@@ -32,11 +36,26 @@ export class Pokemon {
       shiny,
       spawnIndex: index,
     });
+    this.updateGeometry();
+  }
+
+  getCenterOfMassOffset(rotation = this.rotation) {
+    const localX = (this.centerOfMassX - 0.5) * this.width;
+    const localY = (this.centerOfMassY - 0.5) * this.height;
+    const cosine = Math.cos(rotation);
+    const sine = Math.sin(rotation);
+    return {
+      x: localX * cosine - localY * sine,
+      y: localX * sine + localY * cosine,
+    };
   }
 
   updateGeometry() {
     this.centerX = this.x + this.width / 2;
     this.centerY = this.y + this.height / 2;
     this.bottomY = this.y + this.height;
+    const centerOfMassOffset = this.getCenterOfMassOffset();
+    this.worldCenterOfMassX = this.centerX + centerOfMassOffset.x;
+    this.worldCenterOfMassY = this.centerY + centerOfMassOffset.y;
   }
 }

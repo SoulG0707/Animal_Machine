@@ -28,10 +28,10 @@ export class KeyboardInput {
       if (this.isEditableTarget(event.target) || !this.api.canMove()) return;
       const key = event.key.toLowerCase();
       if (event.key === 'ArrowLeft' || key === 'a') {
-        event.preventDefault(); this.ui.setPressed(this.ui.leftButton, true); this.api.startMoving(-1);
+        event.preventDefault(); this.ui.setPressed(this.ui.leftButton, true); this.api.setMovementInput(-1, true);
       }
       if (event.key === 'ArrowRight' || key === 'd') {
-        event.preventDefault(); this.ui.setPressed(this.ui.rightButton, true); this.api.startMoving(1);
+        event.preventDefault(); this.ui.setPressed(this.ui.rightButton, true); this.api.setMovementInput(1, true);
       }
       const focusedControl = event.target instanceof Element && event.target.closest('button, a');
       if (event.code === 'Space' && !event.repeat && (!focusedControl || this.ui.grabButton.contains(event.target))) {
@@ -44,7 +44,8 @@ export class KeyboardInput {
     });
     this.on(document, 'keyup', (event) => {
       const key = event.key.toLowerCase();
-      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight' || key === 'a' || key === 'd') this.api.stopMoving();
+      if (event.key === 'ArrowLeft' || key === 'a') this.api.stopMoving(-1);
+      if (event.key === 'ArrowRight' || key === 'd') this.api.stopMoving(1);
       if (event.code === 'Space') this.ui.setPressed(this.ui.grabButton, false);
     });
     this.on(window, 'blur', () => { this.api.stopMoving(); this.ui.setPressed(this.ui.grabButton, false); });

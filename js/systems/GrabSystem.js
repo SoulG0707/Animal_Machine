@@ -1,7 +1,9 @@
-import { ANIMATION, ENCOURAGING_MESSAGES, MACHINE, TEASING_MESSAGES } from '../config/gameConfig.js';
+import {
+  ANIMATION, DEBUG_GRAB_PHYSICS, ENCOURAGING_MESSAGES, GRAB_PHYSICS, MACHINE, TEASING_MESSAGES,
+} from '../config/gameConfig.js';
 import { TEASING_MESSAGE_CHANCE } from '../config/difficultyConfig.js';
 import { AppState, ClawState, PokemonState } from '../core/GameState.js';
-import { easeInOut, moveTowards } from '../utils/math.js';
+import { clamp, easeInOut, moveTowards } from '../utils/math.js';
 import { randomBetween } from '../utils/random.js';
 
 export class GrabSystem {
@@ -15,36 +17,96 @@ export class GrabSystem {
     return { text: messages[Math.floor(Math.random() * messages.length)].replaceAll('{name}', name), tone };
   }
 
+  getGripPoint() {
+    return { x: this.claw.headX, y: this.claw.headY + GRAB_PHYSICS.gripPointOffsetY };
+  }
+
+  evaluateGrab(prize) {
+    const gripPoint = this.getGripPoint();
+    const grabOffsetX = gripPoint.x - prize.worldCenterOfMassX;
+    const grabOffsetY = gripPoint.y - prize.worldCenterOfMassY;
+    const horizontalReach = prize.bodyRadius + GRAB_PHYSICS.horizontalReachPadding;
+    const verticalReach = prize.bodyRadius + GRAB_PHYSICS.verticalReachPadding;
+    const normalizedDistance = Math.hypot(grabOffsetX / horizontalReach, grabOffsetY / verticalReach);
+    const grabQuality = clamp(1 - normalizedDistance, 0, 1);
+    const perfect = grabQuality >= GRAB_PHYSICS.perfectQuality;
+    const targetTilt = clamp(
+      -grabOffsetX / horizontalReach * GRAB_PHYSICS.maxOffsetTilt,
+      -GRAB_PHYSICS.maxOffsetTilt,
+      GRAB_PHYSICS.maxOffsetTilt,
+    );
+    return {
+      gripPoint,
+      grabOffsetX,
+      grabOffsetY,
+      horizontalReach,
+      verticalReach,
+      normalizedDistance,
+      grabQuality,
+      perfect,
+      targetTilt,
+    };
+  }
+
+  calculateGrip(prize, evaluation, settings = this.difficulty.current) {
+    const weightModifier = 1 / (0.92 + Math.max(0, prize.weight - 1) * 0.18);
+    const qualityModifier = 0.55 + evaluation.grabQuality * 0.45;
+    const effectiveGrip = clamp(settings.gripStrength * prize.grip * qualityModifier * weightModifier, 0, 1);
+    const weightPenalty = Math.max(0, prize.weight - 0.8) * GRAB_PHYSICS.weightPenalty;
+    const badGrabPenalty = Math.pow(1 - evaluation.grabQuality, 1.4) * GRAB_PHYSICS.badGrabPenalty;
+    const lowGripPenalty = (1 - prize.grip) * GRAB_PHYSICS.lowGripPenalty;
+    const instabilityPenalty = (1 - effectiveGrip) * GRAB_PHYSICS.instabilityPenalty;
+    let slipChance = settings.baseSlip + weightPenalty + badGrabPenalty + lowGripPenalty + instabilityPenalty;
+    if (evaluation.perfect) slipChance *= GRAB_PHYSICS.perfectSlipMultiplier;
+    slipChance = clamp(slipChance, settings.minSlip, settings.maxSlip);
+    return { effectiveGrip, slipChance, weightModifier, qualityModifier };
+  }
+
+  getMotionProfile(prize, grabQuality) {
+    const liftSpeedMultiplier = clamp(1.06 - (prize.weight - 0.7) * 0.18, 0.88, 1.05);
+    const carrySpeedMultiplier = clamp(1.04 - (prize.weight - 0.7) * 0.17, 0.88, 1.04);
+    const swingMultiplier = clamp(1 + (prize.weight - 1) * 0.3 + (1 - grabQuality) * 0.35, 0.88, 1.38);
+    return { liftSpeedMultiplier, carrySpeedMultiplier, swingMultiplier };
+  }
+
   findPrizeAtClaw() {
-    const clawTop = this.claw.y + 10;
-    const clawBottom = this.claw.y + 38;
+    const gripPoint = this.getGripPoint();
     return this.state.prizes
       .filter((prize) => this.physics.isPhysicsPrize(prize)
-        && Math.abs(prize.centerX - this.claw.x) < prize.bodyRadius + 24
-        && clawBottom >= prize.y && clawTop <= prize.bottomY)
-      .sort((first, second) => Math.abs(first.centerX - this.claw.x) - Math.abs(second.centerX - this.claw.x) || first.centerY - second.centerY)[0];
+        && Math.abs(prize.worldCenterOfMassX - gripPoint.x) < prize.bodyRadius + GRAB_PHYSICS.horizontalReachPadding
+        && gripPoint.y >= prize.worldCenterOfMassY - GRAB_PHYSICS.captureDepth
+        && gripPoint.y <= prize.bottomY + 12)
+      .sort((first, second) => {
+        const firstDistance = Math.hypot(first.worldCenterOfMassX - gripPoint.x, first.worldCenterOfMassY - gripPoint.y);
+        const secondDistance = Math.hypot(second.worldCenterOfMassX - gripPoint.x, second.worldCenterOfMassY - gripPoint.y);
+        return firstDistance - secondDistance;
+      })[0];
   }
 
   nudgePile(grabbedPrize = null) {
-    const contactY = this.claw.y + 34;
+    const gripPoint = this.getGripPoint();
+    const contactY = gripPoint.y;
     this.state.prizes.forEach((prize) => {
       if (prize === grabbedPrize || !this.physics.isPhysicsPrize(prize)) return;
-      const deltaX = prize.centerX - this.claw.x;
+      const deltaX = prize.worldCenterOfMassX - gripPoint.x;
       const deltaY = prize.centerY - contactY;
       if (Math.abs(deltaX) > prize.bodyRadius + 42 || Math.abs(deltaY) > prize.bodyRadius + 36) return;
       if (prize.lastClawPushAttempt === this.state.grabAttemptId) return;
       prize.lastClawPushAttempt = this.state.grabAttemptId;
       const direction = deltaX === 0 ? (Math.random() < 0.5 ? -1 : 1) : Math.sign(deltaX);
+      const pushResistance = 1 / Math.sqrt(prize.weight);
       this.physics.wake(prize);
-      prize.velocityX += direction * randomBetween(28, 52);
-      prize.velocityY += randomBetween(8, 24);
-      prize.angularVelocity += direction * randomBetween(0.12, 0.28);
+      prize.velocityX += direction * randomBetween(28, 52) * pushResistance;
+      prize.velocityY += randomBetween(8, 24) * pushResistance;
+      prize.angularVelocity += direction * randomBetween(0.12, 0.28) * pushResistance;
     });
   }
 
   attempt() {
     if (this.state.appState !== AppState.PLAYING || this.claw.state !== ClawState.READY || this.state.turns <= 0) return false;
-    this.state.heldDirection = 0;
+    this.state.movementInput.left = false;
+    this.state.movementInput.right = false;
+    this.claw.lockHorizontalMotion();
     this.state.grabAttemptId += 1;
     this.state.turns -= 1;
     this.claw.state = ClawState.DESCENDING;
@@ -65,19 +127,38 @@ export class GrabSystem {
   }
 
   updateCarriedPrize(time) {
-    const prize = this.claw.currentGrab?.pokemon;
+    const grab = this.claw.currentGrab;
+    const prize = grab?.pokemon;
     if (!prize || prize.state !== PokemonState.GRABBED) return;
-    const sway = Math.sin((time - this.claw.grabStartedAt) * 0.008) * 2.5;
-    prize.x = this.claw.x + this.claw.carryOffsetX + sway - prize.width / 2;
-    prize.y = this.claw.y + this.claw.carryOffsetY;
+    const elapsedSeconds = clamp((time - grab.lastPoseTime) / 1000, 0, 0.05);
+    const dynamicSwing = Math.sin((time - this.claw.grabStartedAt) * 0.007)
+      * grab.dynamicTiltAmplitude;
+    const targetRotation = clamp(
+      grab.targetTilt + this.claw.swingAngle * 0.55 * grab.swingMultiplier + dynamicSwing,
+      -GRAB_PHYSICS.maxTotalRotation,
+      GRAB_PHYSICS.maxTotalRotation,
+    );
+    const previousRotation = prize.rotation;
+    const smoothing = elapsedSeconds > 0 ? 1 - Math.exp(-elapsedSeconds * 10) : 0;
+    prize.rotation += (targetRotation - prize.rotation) * smoothing;
+    if (elapsedSeconds > 0) prize.angularVelocity = (prize.rotation - previousRotation) / elapsedSeconds;
+    grab.lastPoseTime = time;
+
+    const sway = Math.sin((time - this.claw.grabStartedAt) * 0.008) * 0.7 * grab.swingMultiplier;
+    const centerOfMassOffset = prize.getCenterOfMassOffset(prize.rotation);
+    const targetCenterX = this.claw.headX + this.claw.carryOffsetX + sway - centerOfMassOffset.x;
+    const targetCenterY = this.claw.y + this.claw.carryOffsetY;
+    prize.x = targetCenterX - prize.width / 2;
+    prize.y = targetCenterY - prize.height / 2;
     this.physics.updateGeometry(prize);
   }
 
   beginPrizeDrop() {
     const prize = this.claw.currentGrab?.pokemon;
     if (!prize || Math.abs(this.claw.x - this.claw.homeX) > 0.001
-      || Math.abs(this.claw.x - this.chute.centerX) >= 2
-      || Math.abs(this.claw.x + this.claw.carryOffsetX - this.chute.centerX) >= 2) return false;
+      || Math.abs(this.claw.velocityX) > 0.001
+      || Math.abs(this.claw.headX - this.chute.centerX) >= 1.5
+      || Math.abs(this.claw.headX + this.claw.carryOffsetX - this.chute.centerX) >= 1.5) return false;
     this.claw.x = this.claw.homeX;
     this.claw.state = ClawState.RELEASING;
     this.claw.phaseElapsed = 0;
@@ -90,12 +171,12 @@ export class GrabSystem {
     const grab = this.claw.currentGrab;
     if (!grab?.pokemon) return false;
     const prize = grab.pokemon;
-    prize.rotation = Math.sin((time - this.claw.grabStartedAt) * 0.007) * 0.035;
     this.physics.updateGeometry(prize);
     Object.assign(prize, {
       state: PokemonState.DROPPING_TO_CHUTE,
       dropPhase: 'falling', dropElapsed: 0, dropAlpha: 1, dropScale: 1,
-      velocityX: 0, velocityY: 0, angularVelocity: randomBetween(-0.025, 0.025),
+      velocityX: 0, velocityY: 0,
+      angularVelocity: clamp(prize.angularVelocity * 0.28 + randomBetween(-0.025, 0.025), -0.28, 0.28),
       chuteSensorTriggered: false, releaseX: prize.x, releaseY: prize.y,
       isSleeping: false, sleepTimer: 0,
     });
@@ -120,10 +201,19 @@ export class GrabSystem {
     const grab = this.claw.currentGrab;
     if (!grab) return;
     const prize = grab.pokemon;
+    const instability = 1 + (1 - grab.grabQuality) * 0.5;
+    const dropWeight = clamp(0.85 + (prize.weight - 0.7) * 0.35, 0.85, 1.15);
+    const retainedAngularVelocity = clamp(
+      (prize.angularVelocity || 0) + randomBetween(-0.16, 0.16) * instability,
+      -1.35,
+      1.35,
+    );
     Object.assign(prize, {
       state: PokemonState.SLIPPING,
-      velocityX: randomBetween(-28, 28), velocityY: randomBetween(0, 18),
-      angularVelocity: randomBetween(-0.72, 0.72), isSleeping: false, sleepTimer: 0, bounceCount: 0,
+      velocityX: this.claw.velocityX * 0.55 + randomBetween(-20, 20) * instability,
+      velocityY: randomBetween(5, 16) * dropWeight,
+      angularVelocity: retainedAngularVelocity,
+      isSleeping: false, sleepTimer: 0, bounceCount: 0,
     });
     this.claw.currentGrab = null;
     this.claw.caught = null;
@@ -146,24 +236,51 @@ export class GrabSystem {
         const prize = this.findPrizeAtClaw();
         if (prize) {
           this.nudgePile(prize);
-          const perfect = Math.abs(prize.centerX - this.claw.x) <= 14;
+          const evaluation = this.evaluateGrab(prize);
           const settings = this.difficulty.current;
-          const willSlip = Math.random() < randomBetween(settings.gripMissMin, settings.gripMissMax) * (perfect ? 0.6 : 1);
-          const slipDuringCarry = willSlip && Math.random() < 0.3;
-          const slipProgress = willSlip ? randomBetween(0.25, 0.65) : null;
+          const gripResult = this.calculateGrip(prize, evaluation, settings);
+          const motion = this.getMotionProfile(prize, evaluation.grabQuality);
+          const willSlip = Math.random() < gripResult.slipChance;
+          const slipDuringCarry = willSlip && Math.random() < 0.3 + evaluation.grabQuality * 0.5;
+          const slipProgress = willSlip && !slipDuringCarry
+            ? clamp(0.24 + evaluation.grabQuality * 0.4 + randomBetween(-0.04, 0.08), 0.22, 0.76)
+            : null;
           const grabY = this.claw.y;
-          this.claw.carryOffsetX = prize.centerX - this.claw.x;
-          this.claw.grabOffsetX = this.claw.carryOffsetX;
-          this.claw.carryOffsetY = prize.y - this.claw.y;
+          const centerOfMassOffset = prize.getCenterOfMassOffset(prize.rotation);
+          const initialCarryOffsetX = prize.centerX - this.claw.headX + centerOfMassOffset.x;
+          this.claw.carryOffsetX = initialCarryOffsetX;
+          this.claw.grabOffsetX = evaluation.grabOffsetX;
+          this.claw.carryOffsetY = prize.centerY - this.claw.y;
           this.claw.grabStartedAt = time;
           this.claw.currentGrab = {
-            pokemon: prize, perfect, basePoints: prize.character.score,
+            pokemon: prize, perfect: evaluation.perfect, basePoints: prize.character.score,
             comboMultiplier: this.combo.nextMultiplier(), willSlip, grabY, slipProgress,
-            slipY: willSlip ? grabY + (this.claw.homeY - grabY) * slipProgress : null,
-            slipDuringCarry, carrySlipDistance: slipDuringCarry ? randomBetween(24, 72) : 0,
+            slipY: slipProgress === null ? null : grabY + (this.claw.homeY - grabY) * slipProgress,
+            slipDuringCarry,
+            carrySlipDistance: slipDuringCarry ? randomBetween(22, 52) + evaluation.grabQuality * 55 : 0,
+            ...evaluation,
+            ...gripResult,
+            ...motion,
+            initialCarryOffsetX,
+            dynamicTiltAmplitude: GRAB_PHYSICS.dynamicTilt
+              * (0.35 + (1 - evaluation.grabQuality) * 0.65)
+              * clamp(prize.weight, 0.8, 1.3),
+            lastPoseTime: time,
           };
+          if (DEBUG_GRAB_PHYSICS) {
+            console.table({
+              pokemon: prize.name,
+              weight: prize.weight,
+              grip: prize.grip,
+              grabQuality: evaluation.grabQuality,
+              grabOffsetX: evaluation.grabOffsetX,
+              effectiveGrip: gripResult.effectiveGrip,
+              slipChance: gripResult.slipChance,
+              willSlip,
+            });
+          }
           this.claw.caught = prize;
-          prize.perfect = perfect;
+          prize.perfect = evaluation.perfect;
           Object.assign(prize, { state: PokemonState.GRABBED, velocityX: 0, velocityY: 0, angularVelocity: 0, isSleeping: false, sleepTimer: 0 });
           this.claw.openAmount = 1;
           this.claw.phaseElapsed = 0;
@@ -179,7 +296,7 @@ export class GrabSystem {
         this.claw.phaseElapsed += elapsed;
         const progress = Math.min(this.claw.phaseElapsed / ANIMATION.closeDuration, 1);
         this.claw.openAmount = 1 - easeInOut(progress);
-        this.claw.carryOffsetX = this.claw.grabOffsetX * (1 - easeInOut(progress));
+        this.claw.carryOffsetX = this.claw.currentGrab.initialCarryOffsetX * (1 - easeInOut(progress));
         if (progress >= 1) {
           this.claw.openAmount = 0; this.claw.carryOffsetX = 0; this.claw.phaseElapsed = 0; this.claw.state = ClawState.LIFTING;
         }
@@ -187,7 +304,8 @@ export class GrabSystem {
       }
       case ClawState.LIFTING: {
         const grab = this.claw.currentGrab;
-        this.claw.y = Math.max(this.claw.homeY, this.claw.y - ANIMATION.liftSpeed * step);
+        const liftSpeed = ANIMATION.liftSpeed * (grab?.liftSpeedMultiplier || 1);
+        this.claw.y = Math.max(this.claw.homeY, this.claw.y - liftSpeed * step);
         if (grab?.willSlip && !grab.slipDuringCarry && this.claw.y <= grab.slipY) { this.beginGripSlip(); break; }
         if (this.claw.y <= this.claw.homeY) {
           this.claw.y = this.claw.homeY;
@@ -211,9 +329,14 @@ export class GrabSystem {
       }
       case ClawState.CARRYING: {
         const grab = this.claw.currentGrab;
-        this.claw.x = moveTowards(this.claw.x, this.claw.homeX, ANIMATION.carrySpeed * step);
+        const arrived = this.claw.updateAutomaticMovement(
+          this.claw.homeX,
+          step,
+          'carry',
+          grab?.carrySpeedMultiplier || 1,
+        );
         if (grab?.willSlip && grab.slipDuringCarry && Math.abs(this.claw.x - grab.carryStartX) >= grab.carrySlipDistance) { this.beginGripSlip(); break; }
-        if (this.claw.x === this.claw.homeX) this.beginPrizeDrop();
+        if (arrived) this.beginPrizeDrop();
         break;
       }
       case ClawState.SLIPPING:
@@ -254,11 +377,11 @@ export class GrabSystem {
         }
         break;
       }
-      case ClawState.RETURNING:
-        this.claw.x = moveTowards(this.claw.x, this.claw.homeX, ANIMATION.returnSpeed * step);
+      case ClawState.RETURNING: {
+        const horizontalArrived = this.claw.updateAutomaticMovement(this.claw.homeX, step, 'return');
         this.claw.y = moveTowards(this.claw.y, this.claw.homeY, ANIMATION.returnSpeed * 0.7 * step);
         this.claw.openAmount = moveTowards(this.claw.openAmount, 1, step * 4);
-        if (this.claw.x === this.claw.homeX && this.claw.y === this.claw.homeY && this.claw.openAmount === 1) {
+        if (horizontalArrived && this.claw.y === this.claw.homeY && this.claw.openAmount === 1) {
           this.ui.setGrabbing(false); this.ui.setPressed(this.ui.grabButton, false);
           if (this.state.turns <= 0) this.finishGame();
           else {
@@ -268,8 +391,8 @@ export class GrabSystem {
           }
         }
         break;
+      }
       default: break;
     }
-    this.updateCarriedPrize(time);
   }
 }

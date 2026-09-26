@@ -17,12 +17,14 @@ export class TouchInput {
         event.preventDefault();
         if (!event.isPrimary || (event.pointerType === 'mouse' && event.button !== 0) || !this.api.canMove()) return;
         this.ui.setPressed(button, true);
-        this.api.startMoving(direction);
+        this.api.setMovementInput(direction, true);
         button.setPointerCapture?.(event.pointerId);
       });
-      for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) this.on(button, eventName, () => this.api.stopMoving());
+      for (const eventName of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+        this.on(button, eventName, () => this.api.stopMoving(direction));
+      }
       this.on(button, 'pointerleave', (event) => {
-        if (!button.hasPointerCapture?.(event.pointerId)) this.api.stopMoving();
+        if (!button.hasPointerCapture?.(event.pointerId)) this.api.stopMoving(direction);
       });
       this.on(button, 'click', (event) => {
         if (event.detail === 0) this.api.stepMove(direction);

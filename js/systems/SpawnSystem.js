@@ -61,7 +61,7 @@ export class SpawnSystem {
       const dimensions = this.getSpriteDimensions(character);
       const radius = Math.max(22, Math.max(dimensions.width, dimensions.height) * 0.42);
       const position = this.findPosition(dimensions, radius, placed);
-      const mass = Math.max(0.7, dimensions.width * dimensions.height / 4200);
+      const mass = character.weight ?? 1;
       const prize = new Pokemon(character, index, dimensions, position, {
         color: FALLBACK_COLORS[index % FALLBACK_COLORS.length],
         velocityX: randomBetween(-8, 8),

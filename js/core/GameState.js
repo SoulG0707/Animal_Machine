@@ -41,7 +41,7 @@ export class GameState {
     this.prizes = [];
     this.particles = [];
     this.lastTime = 0;
-    this.heldDirection = 0;
+    this.movementInput = { left: false, right: false };
     this.selectedCharacter = null;
     this.mission = null;
     this.resetRun();
@@ -50,7 +50,8 @@ export class GameState {
   resetRun() {
     this.score = 0;
     this.turns = GAME_CONFIG.initialTurns;
-    this.heldDirection = 0;
+    this.movementInput.left = false;
+    this.movementInput.right = false;
     this.newBestThisGame = false;
     this.currentCombo = 0;
     this.bestCombo = 0;

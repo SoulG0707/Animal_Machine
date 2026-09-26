@@ -26,6 +26,58 @@ export const ANIMATION = Object.freeze({
   chuteFadeDuration: 240,
 });
 
+export const CLAW_MOVEMENT = Object.freeze({
+  leftBound: 45,
+  rightBound: MACHINE.width - 45,
+  maxSpeed: 280,
+  acceleration: 1250,
+  deceleration: 3200,
+  reverseAcceleration: 2400,
+  grabBrakeDuration: 0.08,
+  tapImpulse: 175,
+  carry: Object.freeze({
+    maxSpeed: 430,
+    acceleration: 1900,
+    deceleration: 2600,
+    arrivalRadius: 76,
+  }),
+  return: Object.freeze({
+    maxSpeed: 440,
+    acceleration: 2100,
+    deceleration: 2800,
+    arrivalRadius: 80,
+  }),
+  swing: Object.freeze({
+    spring: 28,
+    damping: 6.8,
+    descendingDamping: 9.2,
+    automaticDamping: 10.4,
+    accelerationForce: 0.0012,
+    maxAngle: 6 * Math.PI / 180,
+    maxHeadOffset: 14,
+    settleAngle: 0.001,
+    settleVelocity: 0.008,
+  }),
+});
+
+export const DEBUG_GRAB_PHYSICS = false;
+
+export const GRAB_PHYSICS = Object.freeze({
+  gripPointOffsetY: 31,
+  captureDepth: 7,
+  horizontalReachPadding: 24,
+  verticalReachPadding: 30,
+  perfectQuality: 0.84,
+  perfectSlipMultiplier: 0.55,
+  lowGripPenalty: 0.22,
+  badGrabPenalty: 0.28,
+  weightPenalty: 0.08,
+  instabilityPenalty: 0.1,
+  maxOffsetTilt: 18 * Math.PI / 180,
+  maxTotalRotation: 22 * Math.PI / 180,
+  dynamicTilt: 2.2 * Math.PI / 180,
+});
+
 export const GAME_CONFIG = Object.freeze({
   clawScale: 0.84,
   prizeScale: 0.8,

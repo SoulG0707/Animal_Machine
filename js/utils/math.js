@@ -3,6 +3,10 @@ export function moveTowards(current, target, maxStep) {
   return current + Math.sign(target - current) * maxStep;
 }
 
+export function clamp(value, minimum, maximum) {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
 export function easeInOut(progress) {
   return progress * progress * (3 - 2 * progress);
 }
