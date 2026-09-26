@@ -39,6 +39,7 @@
   line-height: 0.95;
   letter-spacing: 0.08em;
   text-decoration: none;
+  font-family: var(--font-display);
 }
 
 .brand-mark {
@@ -65,7 +66,7 @@
 
 .header-note, .high-score, .footer-note, .coin-slot, .eyebrow,
 .control-label, .machine-topline, .collection-heading > span {
-  font-family: 'DM Mono', monospace;
+  font-family: var(--font-game);
   font-size: 10px;
   letter-spacing: 0.13em;
 }
@@ -147,6 +148,7 @@
   color: var(--muted);
   font-size: 14px;
   line-height: 1.55;
+  font-family: var(--font-ui);
 }
 
 .instructions { display: grid; gap: var(--space-2); }
@@ -158,7 +160,7 @@
   min-height: 34px;
 }
 
-.instruction p { margin: 0; color: var(--muted); font-size: 12px; }
+.instruction p { margin: 0; color: var(--muted); font-family: var(--font-ui); font-size: 12px; }
 .instruction p span { margin-left: 4px; color: var(--muted-light); font-size: 10px; }
 
 .keycap {
@@ -176,7 +178,7 @@
   box-shadow: 0 1px 0 rgba(36, 51, 70, 0.05);
 }
 
-.keycap kbd { color: var(--ink); font: 500 13px 'DM Mono', monospace; }
+.keycap kbd { color: var(--ink); font: 500 13px var(--font-game); }
 .keycap-space { min-width: 58px; }
 .keycap-space kbd { font-size: 9px; letter-spacing: 0.06em; }
 

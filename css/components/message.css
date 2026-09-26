@@ -25,7 +25,7 @@
   color: var(--ink);
   background: rgba(255, 252, 243, 0.95);
   box-shadow: 0 5px 14px rgba(36, 51, 70, 0.14), inset 0 1px rgba(255, 255, 255, 0.72);
-  font: 600 13px 'DM Mono', monospace;
+  font: 600 13px var(--font-ui);
   line-height: 1.4;
   text-align: center;
   text-wrap: balance;
