@@ -164,13 +164,14 @@ const desktop = await evaluate(`(async () => {
   game.claw.y = 420;
   game.claw.getPhysicalColliders();
   const uprightHead = game.claw.colliders.head.x;
+  const uprightHeadY = game.claw.colliders.head.y;
   const uprightProng = game.claw.colliders.leftProng.bx;
-  const uprightGrip = game.claw.localToWorld(0, 31);
+  const uprightGrip = game.claw.getGrabPoint();
   game.claw.swingAngle = 8 * Math.PI / 180;
   game.claw.getPhysicalColliders();
   const tiltedHead = game.claw.colliders.head.x;
   const tiltedProng = game.claw.colliders.leftProng.bx;
-  const tiltedGrip = game.claw.localToWorld(0, 31);
+  const tiltedGrip = game.claw.getGrabPoint();
   const localRoundTrip = game.claw.worldToLocal(tiltedGrip.x, tiltedGrip.y);
   const headOffsetAt420 = game.claw.headOffsetX;
   game.claw.y = 180;
@@ -182,6 +183,7 @@ const desktop = await evaluate(`(async () => {
     headColliderShift: tiltedHead - uprightHead,
     prongShift: tiltedProng - uprightProng,
     gripShift: tiltedGrip.x - uprightGrip.x,
+    grabPointBelowHeadAtZero: uprightGrip.y > uprightHeadY,
     localRoundTripError: Math.hypot(localRoundTrip.x, localRoundTrip.y - 31),
   };
 
@@ -215,6 +217,78 @@ const desktop = await evaluate(`(async () => {
     carriageDistance: Math.abs(target.worldCenterOfMassX - game.claw.x),
   };
 
+  const runAttachmentCase = (pickPrize, angleDegrees) => {
+    game.resetGame();
+    game.loop.stop();
+    game.state.appState = 'playing';
+    const prize = pickPrize(game.state.prizes);
+    game.state.prizes.forEach((candidate) => { candidate.collected = candidate !== prize; });
+    prize.collected = false;
+    prize.state = 'idle';
+    prize.rotation = 0;
+    game.claw.x = 330;
+    game.claw.y = 270;
+    game.claw.state = 'closing';
+    game.claw.openAmount = 0;
+    game.claw.swingAngle = angleDegrees * Math.PI / 180;
+    game.claw.swingVelocity = 0;
+    const pointAtGrab = game.claw.getGrabPoint();
+    const centerOfMassOffset = prize.getCenterOfMassOffset(0);
+    prize.x = pointAtGrab.x - prize.width / 2 - centerOfMassOffset.x;
+    prize.y = pointAtGrab.y - prize.height / 2 - centerOfMassOffset.y;
+    game.physics.updateGeometry(prize);
+    const evaluation = game.grab.evaluateGrab(prize);
+    const startedAt = performance.now();
+    const secured = game.grab.securePrize({ prize, evaluation }, startedAt);
+    const grab = game.claw.currentGrab;
+    grab.targetTilt = 0;
+    grab.dynamicTiltAmplitude = 0;
+    grab.lastPoseTime = startedAt;
+    game.grab.updateCarriedPrize(startedAt + 16);
+    const point = game.claw.getGrabPoint();
+    const anchorOffset = prize.getGrabAnchorOffset(prize.rotation);
+    const initialAnchorError = Math.hypot(
+      prize.centerX + anchorOffset.x - point.x,
+      prize.centerY + anchorOffset.y - point.y,
+    );
+    const initialAnchorWorld = { x: prize.centerX + anchorOffset.x, y: prize.centerY + anchorOffset.y };
+    const topIsBelowPivot = prize.y > game.claw.pivotY;
+    const identityPreserved = secured
+      && game.claw.caught === prize
+      && game.claw.currentGrab.pokemon === prize;
+    const headCenter = game.claw.localToWorld(0, 3);
+    const grabPointBelowHead = point.y > headCenter.y;
+    const rotationFollowsSwing = Math.sign(prize.rotation) === Math.sign(game.claw.bodyAngle);
+    const initialPoint = { ...point };
+    game.claw.x += 12;
+    game.claw.swingAngle = angleDegrees * 0.55 * Math.PI / 180;
+    game.grab.updateCarriedPrize(startedAt + 64);
+    const movedPoint = game.claw.getGrabPoint();
+    const movedOffset = prize.getGrabAnchorOffset(prize.rotation);
+    const movedAnchorError = Math.hypot(
+      prize.centerX + movedOffset.x - movedPoint.x,
+      prize.centerY + movedOffset.y - movedPoint.y,
+    );
+    return {
+      name: prize.name,
+      width: prize.width,
+      height: prize.height,
+      angleDegrees,
+      anchor: { x: prize.grabAnchorX, y: prize.grabAnchorY },
+      initialAnchorError,
+      movedAnchorError,
+      topIsBelowPivot,
+      grabPointBelowHead,
+      rotationFollowsSwing,
+      identityPreserved,
+      swingFollowed: Math.hypot(movedPoint.x - initialPoint.x, movedPoint.y - initialPoint.y) > 1
+        && Math.hypot((prize.centerX + movedOffset.x) - initialAnchorWorld.x, (prize.centerY + movedOffset.y) - initialAnchorWorld.y) > 1,
+    };
+  };
+  const sizeSorted = game.state.prizes.slice().sort((first, second) => first.width * first.height - second.width * second.height);
+  const smallAttachment = runAttachmentCase((prizes) => prizes.find((prize) => prize.name === sizeSorted[0].name), 12);
+  const largeAttachment = runAttachmentCase((prizes) => prizes.find((prize) => prize.name === sizeSorted[sizeSorted.length - 1].name), -12);
+
   game.resetGame();
   game.loop.stop();
   game.state.appState = 'playing';
@@ -228,8 +302,6 @@ const desktop = await evaluate(`(async () => {
   game.claw.accelerationX = 0;
   game.claw.swingAngle = 8 * Math.PI / 180;
   game.claw.swingVelocity = 0.35;
-  game.claw.carryOffsetX = 0;
-  game.claw.carryOffsetY = 70;
   game.claw.caught = carried;
   game.claw.state = 'carrying';
   const simStart = performance.now();
@@ -240,17 +312,14 @@ const desktop = await evaluate(`(async () => {
     carrySpeedMultiplier: 1,
     homeSettleFrames: null,
     lastPoseTime: simStart,
-    carryLocalX: 0,
-    initialCarryLocalX: 0,
-    carryLocalY: 36,
     targetTilt: 0,
     swingMultiplier: 1,
     dynamicTiltAmplitude: 0,
     rewardResolved: true,
   };
   game.grab.updateCarriedPrize(simStart);
-  const initialAttachment = game.claw.localToWorld(0, 36);
-  const initialComOffset = carried.getCenterOfMassOffset(carried.rotation);
+  const initialAttachment = game.claw.getGrabPoint();
+  const initialComOffset = carried.getGrabAnchorOffset(carried.rotation);
   const initialAttachmentError = Math.hypot(
     carried.centerX + initialComOffset.x - initialAttachment.x,
     carried.centerY + initialComOffset.y - initialAttachment.y,
@@ -258,8 +327,8 @@ const desktop = await evaluate(`(async () => {
   const firstAngle = game.claw.swingAngle;
   game.claw.updateSwing(1 / 60);
   game.grab.updateCarriedPrize(simStart + 1000 / 60);
-  const movedAttachment = game.claw.localToWorld(0, 36);
-  const movedComOffset = carried.getCenterOfMassOffset(carried.rotation);
+  const movedAttachment = game.claw.getGrabPoint();
+  const movedComOffset = carried.getGrabAnchorOffset(carried.rotation);
   const movedAttachmentError = Math.hypot(
     carried.centerX + movedComOffset.x - movedAttachment.x,
     carried.centerY + movedComOffset.y - movedAttachment.y,
@@ -315,6 +384,8 @@ const desktop = await evaluate(`(async () => {
     frameRateRuns,
     transform,
     swingGrab,
+    smallAttachment,
+    largeAttachment,
     carrySettle,
     configuredMaxAngle: CLAW_MOVEMENT.swing.maxAngle,
     configuredMaxCoast: CLAW_MOVEMENT.releaseCoastMax,
@@ -339,6 +410,7 @@ await send('Input.dispatchTouchEvent', {
   type: 'touchStart', touchPoints: [{ ...points['right-btn'], radiusX: 4, radiusY: 4, force: 1 }],
 });
 await wait(420);
+const mobileRightHeld = await evaluate(`(async () => (await import('/js/main.js')).game.getSnapshot())()`);
 await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 const mobileRelease = await evaluate(`(async () => (await import('/js/main.js')).game.getSnapshot())()`);
 await wait(45);
@@ -348,6 +420,7 @@ await send('Input.dispatchTouchEvent', {
   type: 'touchStart', touchPoints: [{ ...points['left-btn'], radiusX: 4, radiusY: 4, force: 1 }],
 });
 await wait(420);
+const mobileLeftHeld = await evaluate(`(async () => (await import('/js/main.js')).game.getSnapshot())()`);
 await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 const mobileLeftRelease = await evaluate(`(async () => (await import('/js/main.js')).game.getSnapshot())()`);
 await wait(45);
@@ -362,12 +435,14 @@ await send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
 await wait(60);
 const turnsAfterGrab = await evaluate(`(async () => (await import('/js/main.js')).game.state.turns)()`);
 const mobile = {
+  rightTravel: mobileRightHeld.clawX - 300,
   coast: mobileAfterRelease.clawX - mobileRelease.clawX,
   stoppedVelocity: mobileAfterRelease.clawVelocityX,
   swingVelocity: mobileAfterRelease.clawSwingVelocity,
   headXDelta: mobileAfterRelease.clawHeadX - mobileRelease.clawHeadX,
   headOffset: mobileAfterRelease.clawHeadOffsetX,
   cableDisplacement: mobileAfterRelease.clawCableX - mobileAfterRelease.clawPivotX,
+  leftTravel: 360 - mobileLeftHeld.clawX,
   leftCoast: mobileLeftAfterRelease.clawX - mobileLeftRelease.clawX,
   leftVelocity: mobileLeftAfterRelease.clawVelocityX,
   leftSwingVelocity: mobileLeftAfterRelease.clawSwingVelocity,
@@ -409,6 +484,7 @@ const checks = {
     && desktop.transform.headColliderShift > 1
     && desktop.transform.prongShift > 4
     && desktop.transform.gripShift > 4
+    && desktop.transform.grabPointBelowHeadAtZero
     && desktop.transform.localRoundTripError < 0.000001,
   rapidReversals: desktop.rapidLeftToRight.beforeReverse.velocity < 0
     && desktop.rapidLeftToRight.afterReverse.velocity > 0
@@ -431,13 +507,25 @@ const checks = {
     && Math.abs(desktop.carrySettle.chuteX - 112) <= 8
     && desktop.carrySettle.chuteSensorTriggered
     && desktop.carrySettle.prizeCollected,
+  pokemonGrabAnchor: [desktop.smallAttachment, desktop.largeAttachment].every((attachment) =>
+    attachment.initialAnchorError < 0.0001
+    && attachment.movedAnchorError < 0.0001
+    && attachment.topIsBelowPivot
+    && attachment.grabPointBelowHead
+    && attachment.rotationFollowsSwing
+    && attachment.identityPreserved
+    && attachment.swingFollowed
+    && attachment.anchor.x === 0.5
+    && attachment.anchor.y === 0.22),
   mobileRight: mobile.coast >= 0 && mobile.coast <= 3
+    && mobile.rightTravel > 30
     && Math.abs(mobile.stoppedVelocity) < 0.01
-    && mobile.swingVelocity > 0 && mobile.headXDelta > 0
+    && mobile.swingVelocity > 0
     && mobile.cableDisplacement === 0,
   mobileLeft: mobile.leftCoast <= 0 && mobile.leftCoast >= -3
+    && mobile.leftTravel > 30
     && Math.abs(mobile.leftVelocity) < 0.01
-    && mobile.leftSwingVelocity < 0 && mobile.leftHeadXDelta < 0
+    && mobile.leftSwingVelocity < 0
     && mobile.leftCableDisplacement === 0
     && mobile.turnsAfterGrab === mobile.turnsBeforeGrab - 1,
   consoleClean: errors.length === 0,
@@ -452,6 +540,10 @@ const summary = {
     frameRatePeakDegrees: desktop.frameRateRuns.map((run) => ({ rate: run.rate, peak: degrees(run.peakAngle) })),
     transform: desktop.transform,
     tiltedGrab: desktop.swingGrab,
+    pokemonAttachment: {
+      small: desktop.smallAttachment,
+      large: desktop.largeAttachment,
+    },
     carryAndChute: desktop.carrySettle,
     configuredMaxAngleDegrees: degrees(desktop.configuredMaxAngle),
     configuredMaxCoast: desktop.configuredMaxCoast,

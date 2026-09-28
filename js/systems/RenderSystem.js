@@ -1,5 +1,5 @@
 import {
-  CLAW_MOVEMENT, DEBUG_CLAW_COLLIDERS, GAME_CONFIG, GRAB_PHYSICS, RARITY_COLORS,
+  CLAW_MOVEMENT, DEBUG_CLAW_COLLIDERS, GAME_CONFIG, RARITY_COLORS,
 } from '../config/gameConfig.js';
 import { PokemonState } from '../core/GameState.js';
 
@@ -162,23 +162,6 @@ export class RenderSystem {
     context.beginPath(); context.moveTo(anchorX, 0); context.lineTo(cableX, claw.pivotY); context.stroke();
     context.fillStyle = '#243346'; context.fillRect(anchorX - 10, 0, 20, 7);
     context.restore();
-    context.save();
-    context.translate(claw.pivotX, claw.pivotY);
-    context.rotate(claw.bodyAngle);
-    context.scale(GAME_CONFIG.clawScale, GAME_CONFIG.clawScale);
-    context.translate(0, CLAW_MOVEMENT.swing.pivotToAssemblyOrigin / GAME_CONFIG.clawScale);
-    if (claw.caught) {
-      const attached = claw.worldToLocal(claw.caught.centerX, claw.caught.centerY);
-      context.strokeStyle = '#243346'; context.lineWidth = 5; context.lineCap = 'round';
-      context.beginPath(); context.moveTo(0, GRAB_PHYSICS.gripPointOffsetY); context.lineTo(attached.x, attached.y); context.stroke();
-    }
-    context.fillStyle = '#243346'; context.fillRect(-34, -8, 68, 23);
-    context.fillStyle = '#e6464d'; context.fillRect(-28, -4, 56, 14);
-    context.fillStyle = '#ffd342'; context.fillRect(-5, -2, 10, 9);
-    const spread = 6 + claw.openAmount * 9;
-    context.fillStyle = '#243346'; context.fillRect(-14 - spread, 10, 8, 24); context.fillRect(6 + spread, 10, 8, 24);
-    context.fillRect(-20 - spread, 30, 15, 8); context.fillRect(5 + spread, 30, 15, 8);
-    context.restore();
     if (claw.caught) {
       const prize = claw.caught;
       if (prize.character.loaded) {
@@ -186,6 +169,18 @@ export class RenderSystem {
         context.drawImage(prize.character.image, -prize.width / 2, -prize.height / 2, prize.width, prize.height); context.restore();
       } else this.drawPixelPokeball(prize);
     }
+    context.save();
+    context.translate(claw.pivotX, claw.pivotY);
+    context.rotate(claw.bodyAngle);
+    context.scale(GAME_CONFIG.clawScale, GAME_CONFIG.clawScale);
+    context.translate(0, CLAW_MOVEMENT.swing.pivotToAssemblyOrigin / GAME_CONFIG.clawScale);
+    context.fillStyle = '#243346'; context.fillRect(-34, -8, 68, 23);
+    context.fillStyle = '#e6464d'; context.fillRect(-28, -4, 56, 14);
+    context.fillStyle = '#ffd342'; context.fillRect(-5, -2, 10, 9);
+    const spread = 6 + claw.openAmount * 9;
+    context.fillStyle = '#243346'; context.fillRect(-14 - spread, 10, 8, 24); context.fillRect(6 + spread, 10, 8, 24);
+    context.fillRect(-20 - spread, 30, 15, 8); context.fillRect(5 + spread, 30, 15, 8);
+    context.restore();
     if (DEBUG_CLAW_COLLIDERS) this.drawClawColliders();
   }
 

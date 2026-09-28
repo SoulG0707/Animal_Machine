@@ -115,6 +115,8 @@ export const GRAB_PHYSICS = Object.freeze({
   dynamicTilt: 2.2 * Math.PI / 180,
 });
 
+export const POKEMON_GRAB_ANCHOR = Object.freeze({ x: 0.5, y: 0.22 });
+
 export const GAME_CONFIG = Object.freeze({
   clawScale: 0.84,
   prizeScale: 0.8,

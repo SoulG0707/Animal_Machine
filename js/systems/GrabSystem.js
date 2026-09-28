@@ -30,7 +30,7 @@ export class GrabSystem {
   }
 
   getGripPoint() {
-    return this.claw.localToWorld(0, GRAB_PHYSICS.gripPointOffsetY);
+    return this.claw.getGrabPoint();
   }
 
   evaluateGrab(prize) {
@@ -176,12 +176,7 @@ export class GrabSystem {
       ? clamp(0.24 + evaluation.grabQuality * 0.4 + randomBetween(-0.04, 0.08), 0.22, 0.76)
       : null;
     const grabY = this.claw.y;
-    const centerOfMassOffset = prize.getCenterOfMassOffset(prize.rotation);
-    const initialCarryOffsetX = prize.centerX - this.claw.headX + centerOfMassOffset.x;
-    const carryLocalOffset = this.claw.worldToLocal(prize.worldCenterOfMassX, prize.worldCenterOfMassY);
-    this.claw.carryOffsetX = initialCarryOffsetX;
     this.claw.grabOffsetX = evaluation.grabOffsetX;
-    this.claw.carryOffsetY = prize.centerY - this.claw.y;
     this.claw.grabStartedAt = time;
     this.claw.currentGrab = {
       pokemon: prize, perfect: evaluation.perfect, basePoints: prize.character.score,
@@ -192,11 +187,6 @@ export class GrabSystem {
       ...evaluation,
       ...gripResult,
       ...motion,
-      initialCarryOffsetX,
-      initialCarryLocalX: carryLocalOffset.x,
-      carryLocalX: carryLocalOffset.x,
-      carryLocalY: carryLocalOffset.y,
-      secureElapsed: 0,
       dynamicTiltAmplitude: GRAB_PHYSICS.dynamicTilt
         * (0.35 + (1 - evaluation.grabQuality) * 0.65)
         * clamp(prize.weight, 0.8, 1.3),
@@ -244,8 +234,6 @@ export class GrabSystem {
     this.claw.phaseElapsed = 0;
     this.claw.slipPhase = null;
     this.claw.grabOffsetX = 0;
-    this.claw.carryOffsetX = 0;
-    this.claw.carryOffsetY = 0;
     this.resetClawContacts();
     this.ui.setGrabbing(true);
     this.ui.setPressed(this.ui.grabButton, true);
@@ -272,15 +260,10 @@ export class GrabSystem {
     if (elapsedSeconds > 0) prize.angularVelocity = (prize.rotation - previousRotation) / elapsedSeconds;
     grab.lastPoseTime = time;
 
-    if (!Number.isFinite(grab.carryLocalX) || !Number.isFinite(grab.carryLocalY)) {
-      const local = this.claw.worldToLocal(prize.worldCenterOfMassX, prize.worldCenterOfMassY);
-      grab.carryLocalX = local.x;
-      grab.carryLocalY = local.y;
-    }
-    const centerOfMassOffset = prize.getCenterOfMassOffset(prize.rotation);
-    const attachment = this.claw.localToWorld(grab.carryLocalX, grab.carryLocalY);
-    const targetCenterX = attachment.x - centerOfMassOffset.x;
-    const targetCenterY = attachment.y - centerOfMassOffset.y;
+    const attachment = this.claw.getGrabPoint();
+    const anchorOffset = prize.getGrabAnchorOffset(prize.rotation);
+    const targetCenterX = attachment.x - anchorOffset.x;
+    const targetCenterY = attachment.y - anchorOffset.y;
     prize.x = targetCenterX - prize.width / 2;
     prize.y = targetCenterY - prize.height / 2;
     this.physics.updateGeometry(prize);
@@ -415,12 +398,6 @@ export class GrabSystem {
       }
       case ClawState.LIFTING: {
         const grab = this.claw.currentGrab;
-        if (grab) {
-          grab.secureElapsed += elapsed;
-          const secureProgress = Math.min(grab.secureElapsed / ANIMATION.closeDuration, 1);
-          grab.carryLocalX = grab.initialCarryLocalX * (1 - easeInOut(secureProgress));
-          this.claw.carryOffsetX = grab.initialCarryOffsetX * (1 - easeInOut(secureProgress));
-        }
         const liftSpeed = ANIMATION.liftSpeed * (grab?.liftSpeedMultiplier || 1);
         this.claw.y = Math.max(this.claw.homeY, this.claw.y - liftSpeed * step);
         if (grab?.willSlip && !grab.slipDuringCarry && this.claw.y <= grab.slipY) { this.beginGripSlip(); break; }

@@ -91,8 +91,6 @@ const result = await evaluate(`(async () => {
   const prize = pikachu.prize;
   game.claw.x = prize.worldCenterOfMassX + pikachu.offset.horizontalReach * 0.62;
   game.claw.y = prize.worldCenterOfMassY - 31;
-  game.claw.carryOffsetX = 0;
-  game.claw.carryOffsetY = prize.centerY - game.claw.y;
   game.claw.swingAngle = 0.025;
   game.claw.state = 'carrying';
   prize.rotation = 0;

@@ -1,4 +1,9 @@
 import { PokemonState } from '../core/GameState.js';
+import { POKEMON_GRAB_ANCHOR } from '../config/gameConfig.js';
+
+function normalizedAnchor(value, fallback) {
+  return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : fallback;
+}
 
 export class Pokemon {
   constructor(character, index, dimensions, position, options) {
@@ -25,6 +30,8 @@ export class Pokemon {
       grip: character.grip ?? 0.8,
       centerOfMassX: character.centerOfMassX ?? 0.5,
       centerOfMassY: character.centerOfMassY ?? 0.5,
+      grabAnchorX: normalizedAnchor(character.grabAnchorX, POKEMON_GRAB_ANCHOR.x),
+      grabAnchorY: normalizedAnchor(character.grabAnchorY, POKEMON_GRAB_ANCHOR.y),
       mass,
       inverseMass: 1 / mass,
       restitution,
@@ -42,6 +49,17 @@ export class Pokemon {
   getCenterOfMassOffset(rotation = this.rotation) {
     const localX = (this.centerOfMassX - 0.5) * this.width;
     const localY = (this.centerOfMassY - 0.5) * this.height;
+    const cosine = Math.cos(rotation);
+    const sine = Math.sin(rotation);
+    return {
+      x: localX * cosine - localY * sine,
+      y: localX * sine + localY * cosine,
+    };
+  }
+
+  getGrabAnchorOffset(rotation = this.rotation) {
+    const localX = (this.grabAnchorX - 0.5) * this.width;
+    const localY = (this.grabAnchorY - 0.5) * this.height;
     const cosine = Math.cos(rotation);
     const sine = Math.sin(rotation);
     return {

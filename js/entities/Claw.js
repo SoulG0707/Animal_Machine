@@ -1,4 +1,4 @@
-import { CLAW_COLLISION, CLAW_MOVEMENT, GAME_CONFIG } from '../config/gameConfig.js';
+import { CLAW_COLLISION, CLAW_MOVEMENT, GAME_CONFIG, GRAB_PHYSICS } from '../config/gameConfig.js';
 import { ClawState } from '../core/GameState.js';
 
 function moveTowards(current, target, maxStep) {
@@ -58,6 +58,10 @@ export class Claw {
 
   get headY() {
     return this.pivotY + Math.cos(this.swingAngle) * CLAW_MOVEMENT.swing.centerOfMassOffset;
+  }
+
+  getGrabPoint(output = {}) {
+    return this.localToWorld(0, GRAB_PHYSICS.gripPointOffsetY, output);
   }
 
   get bodyAngle() {
@@ -316,9 +320,7 @@ export class Claw {
     this.currentGrab = null;
     this.openAmount = CLAW_COLLISION.readyOpenAmount;
     this.phaseElapsed = 0;
-    this.carryOffsetX = 0;
     this.grabOffsetX = 0;
-    this.carryOffsetY = 0;
     this.grabStartedAt = 0;
     this.droppingPrize = null;
     this.dropGrab = null;
