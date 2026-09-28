@@ -22,7 +22,7 @@ export const ANIMATION = Object.freeze({
   returnSpeed: 440,
   closeDuration: 180,
   slipLoosenDuration: 110,
-  dropOpenDuration: 140,
+  homeReleaseDelay: 200,
   chuteFadeDuration: 240,
 });
 
@@ -64,8 +64,7 @@ export const CLAW_MOVEMENT = Object.freeze({
     maxAngle: 18 * Math.PI / 180,
     settleAngle: 0.0008,
     settleVelocity: 0.006,
-    dropSettleAngle: 1.5 * Math.PI / 180,
-    dropSettleVelocity: 0.08,
+    homeReleaseMaxAngle: 8 * Math.PI / 180,
     integrationStep: 1 / 120,
   }),
 });

@@ -310,7 +310,7 @@ const desktop = await evaluate(`(async () => {
     willSlip: false,
     slipDuringCarry: false,
     carrySpeedMultiplier: 1,
-    homeSettleFrames: null,
+    homeReleaseElapsed: null,
     lastPoseTime: simStart,
     targetTilt: 0,
     swingMultiplier: 1,
@@ -347,7 +347,7 @@ const desktop = await evaluate(`(async () => {
     game.grab.update(time, 1000 / 60);
     game.grab.updateCarriedPrize(time);
     if (frame === 0) strongSwingState = game.claw.state;
-    if (releaseFrame === null && game.claw.state === 'releasing') {
+    if (releaseFrame === null && game.claw.state === 'waiting-for-chute') {
       releaseFrame = frame;
       releaseAngle = game.claw.swingAngle;
       releaseVelocity = game.claw.swingVelocity;
@@ -370,8 +370,7 @@ const desktop = await evaluate(`(async () => {
     initialAttachmentError,
     movedAttachmentError,
     firstAngle,
-    maxDropAngle: CLAW_MOVEMENT.swing.dropSettleAngle,
-    maxDropVelocity: CLAW_MOVEMENT.swing.dropSettleVelocity,
+    maxDropAngle: CLAW_MOVEMENT.swing.homeReleaseMaxAngle,
   };
 
   return {
@@ -500,7 +499,6 @@ const checks = {
   loadedAttachmentAndDrop: desktop.carrySettle.strongSwingState === 'carrying'
     && desktop.carrySettle.releaseFrame > 1
     && Math.abs(desktop.carrySettle.releaseAngle) <= desktop.carrySettle.maxDropAngle
-    && Math.abs(desktop.carrySettle.releaseVelocity) <= desktop.carrySettle.maxDropVelocity
     && desktop.carrySettle.attachmentFollowedSwing
     && desktop.carrySettle.initialAttachmentError < 0.0001
     && desktop.carrySettle.movedAttachmentError < 0.0001

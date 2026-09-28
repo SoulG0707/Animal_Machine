@@ -191,7 +191,7 @@ export class GrabSystem {
         * (0.35 + (1 - evaluation.grabQuality) * 0.65)
         * clamp(prize.weight, 0.8, 1.3),
       lastPoseTime: time,
-      homeSettleFrames: null,
+      homeReleaseElapsed: null,
     };
     if (DEBUG_GRAB_PHYSICS) {
       console.table({
@@ -269,25 +269,30 @@ export class GrabSystem {
     this.physics.updateGeometry(prize);
   }
 
-  beginPrizeDrop() {
+  canReleaseAtHome(time) {
     const prize = this.claw.currentGrab?.pokemon;
-    const mouth = this.chute.mouth;
-    const centerTolerance = prize
-      ? Math.max(1, Math.min(7, (mouth.width - prize.width) / 2 - 2))
-      : 0;
     if (!prize || Math.abs(this.claw.x - this.claw.homeX) > 0.001
+      || Math.abs(this.claw.y - this.claw.homeY) > 0.001
       || Math.abs(this.claw.velocityX) > 0.001
-      || !this.claw.isSwingSettledForDrop()
-      || centerTolerance <= 0
-      || Math.abs(prize.centerX - this.chute.centerX) > centerTolerance
-      || prize.x < mouth.x + 2
-      || prize.x + prize.width > mouth.x + mouth.width - 2) return false;
+      || Math.abs(this.claw.swingAngle) > CLAW_MOVEMENT.swing.homeReleaseMaxAngle) return false;
+    // The carriage may have moved this frame; check the carried sprite at its current pose.
+    this.updateCarriedPrize(time);
+    const mouth = this.chute.mouth;
+    const cosine = Math.abs(Math.cos(prize.rotation));
+    const sine = Math.abs(Math.sin(prize.rotation));
+    const halfWidth = (prize.width * cosine + prize.height * sine) / 2;
+    return prize.centerX - halfWidth >= mouth.x + 2
+      && prize.centerX + halfWidth <= mouth.x + mouth.width - 2;
+  }
+
+  beginPrizeDrop(time, elapsed) {
+    if (!this.canReleaseAtHome(time)) return false;
     this.claw.x = this.claw.homeX;
-    this.claw.state = ClawState.RELEASING;
-    this.claw.phaseElapsed = 0;
-    this.claw.openAmount = 0;
-    this.ui.message.showStatus('RELEASING...', 900);
-    return true;
+    this.claw.openAmount = 1;
+    const prize = this.claw.currentGrab.pokemon;
+    const released = this.releaseGrabbedPrize(time);
+    if (released) this.physics.updateChuteDrop(prize, elapsed);
+    return released;
   }
 
   releaseGrabbedPrize(time) {
@@ -433,10 +438,14 @@ export class GrabSystem {
           grab?.carrySpeedMultiplier || 1,
         );
         if (grab?.willSlip && grab.slipDuringCarry && Math.abs(this.claw.x - grab.carryStartX) >= grab.carrySlipDistance) { this.beginGripSlip(); break; }
-        if (arrived && grab) {
-          if (grab.homeSettleFrames === null) grab.homeSettleFrames = 0;
-          else grab.homeSettleFrames += 1;
-          if (grab.homeSettleFrames >= 1 && this.claw.isSwingSettledForDrop()) this.beginPrizeDrop();
+        if (grab) {
+          if (arrived && this.canReleaseAtHome(time)) {
+            if (grab.homeReleaseElapsed === null) grab.homeReleaseElapsed = 0;
+            else grab.homeReleaseElapsed += elapsed;
+            if (grab.homeReleaseElapsed >= ANIMATION.homeReleaseDelay - 0.001) {
+              this.beginPrizeDrop(time, elapsed);
+            }
+          } else grab.homeReleaseElapsed = null;
         }
         break;
       }
@@ -451,13 +460,6 @@ export class GrabSystem {
           if (this.claw.y === this.claw.homeY) this.claw.state = ClawState.RETURNING;
         }
         break;
-      case ClawState.RELEASING: {
-        this.claw.phaseElapsed += elapsed;
-        const progress = Math.min(this.claw.phaseElapsed / ANIMATION.dropOpenDuration, 1);
-        this.claw.openAmount = easeInOut(progress);
-        if (progress >= 1 && !this.releaseGrabbedPrize(time)) this.claw.state = ClawState.RETURNING;
-        break;
-      }
       case ClawState.WAITING_FOR_CHUTE: {
         const prize = this.claw.droppingPrize;
         const grab = this.claw.dropGrab;

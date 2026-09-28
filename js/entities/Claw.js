@@ -232,12 +232,6 @@ export class Claw {
     return this.x - previousX;
   }
 
-  isSwingSettledForDrop() {
-    const swing = CLAW_MOVEMENT.swing;
-    return Math.abs(this.swingAngle) <= swing.dropSettleAngle
-      && Math.abs(this.swingVelocity) <= swing.dropSettleVelocity;
-  }
-
   updateAutomaticMovement(targetX, deltaSeconds, profileName = 'return', speedMultiplier = 1) {
     if (deltaSeconds <= 0) return Math.abs(targetX - this.x) < 0.001;
     const profile = CLAW_MOVEMENT[profileName];
