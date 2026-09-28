@@ -60,7 +60,7 @@ export class Claw {
     return this.pivotY + Math.cos(this.swingAngle) * CLAW_MOVEMENT.swing.centerOfMassOffset;
   }
 
-  getGrabPoint(output = {}) {
+  getCarryAttachmentPoint(output = {}) {
     return this.localToWorld(0, GRAB_PHYSICS.gripPointOffsetY, output);
   }
 

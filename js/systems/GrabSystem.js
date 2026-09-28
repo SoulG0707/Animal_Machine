@@ -30,7 +30,7 @@ export class GrabSystem {
   }
 
   getGripPoint() {
-    return this.claw.getGrabPoint();
+    return this.claw.localToWorld(0, GRAB_PHYSICS.gripPointOffsetY);
   }
 
   evaluateGrab(prize) {
@@ -260,7 +260,7 @@ export class GrabSystem {
     if (elapsedSeconds > 0) prize.angularVelocity = (prize.rotation - previousRotation) / elapsedSeconds;
     grab.lastPoseTime = time;
 
-    const attachment = this.claw.getGrabPoint();
+    const attachment = this.claw.getCarryAttachmentPoint();
     const anchorOffset = prize.getGrabAnchorOffset(prize.rotation);
     const targetCenterX = attachment.x - anchorOffset.x;
     const targetCenterY = attachment.y - anchorOffset.y;
@@ -364,7 +364,10 @@ export class GrabSystem {
           velocityY,
         });
         this.recordClawContacts(contacts, 'descending');
-        if (this.claw.y >= this.claw.targetY) {
+        // Close on a reachable body between the prongs before descent pushes it out of the grab zone.
+        const reachableContact = contacts.length ? this.selectPrizeFromClosedClaw() : null;
+        if (this.claw.y >= this.claw.targetY
+          || (reachableContact?.contacted && reachableContact.betweenProngs)) {
           this.claw.phaseElapsed = 0;
           this.claw.state = ClawState.CLOSING;
           this.emitHook('onClawClose', { x: this.claw.headX, y: this.claw.headY });

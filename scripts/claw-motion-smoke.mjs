@@ -166,12 +166,12 @@ const desktop = await evaluate(`(async () => {
   const uprightHead = game.claw.colliders.head.x;
   const uprightHeadY = game.claw.colliders.head.y;
   const uprightProng = game.claw.colliders.leftProng.bx;
-  const uprightGrip = game.claw.getGrabPoint();
+  const uprightGrip = game.claw.getCarryAttachmentPoint();
   game.claw.swingAngle = 8 * Math.PI / 180;
   game.claw.getPhysicalColliders();
   const tiltedHead = game.claw.colliders.head.x;
   const tiltedProng = game.claw.colliders.leftProng.bx;
-  const tiltedGrip = game.claw.getGrabPoint();
+  const tiltedGrip = game.claw.getCarryAttachmentPoint();
   const localRoundTrip = game.claw.worldToLocal(tiltedGrip.x, tiltedGrip.y);
   const headOffsetAt420 = game.claw.headOffsetX;
   game.claw.y = 180;
@@ -232,7 +232,7 @@ const desktop = await evaluate(`(async () => {
     game.claw.openAmount = 0;
     game.claw.swingAngle = angleDegrees * Math.PI / 180;
     game.claw.swingVelocity = 0;
-    const pointAtGrab = game.claw.getGrabPoint();
+    const pointAtGrab = game.claw.getCarryAttachmentPoint();
     const centerOfMassOffset = prize.getCenterOfMassOffset(0);
     prize.x = pointAtGrab.x - prize.width / 2 - centerOfMassOffset.x;
     prize.y = pointAtGrab.y - prize.height / 2 - centerOfMassOffset.y;
@@ -245,7 +245,7 @@ const desktop = await evaluate(`(async () => {
     grab.dynamicTiltAmplitude = 0;
     grab.lastPoseTime = startedAt;
     game.grab.updateCarriedPrize(startedAt + 16);
-    const point = game.claw.getGrabPoint();
+    const point = game.claw.getCarryAttachmentPoint();
     const anchorOffset = prize.getGrabAnchorOffset(prize.rotation);
     const initialAnchorError = Math.hypot(
       prize.centerX + anchorOffset.x - point.x,
@@ -263,7 +263,7 @@ const desktop = await evaluate(`(async () => {
     game.claw.x += 12;
     game.claw.swingAngle = angleDegrees * 0.55 * Math.PI / 180;
     game.grab.updateCarriedPrize(startedAt + 64);
-    const movedPoint = game.claw.getGrabPoint();
+    const movedPoint = game.claw.getCarryAttachmentPoint();
     const movedOffset = prize.getGrabAnchorOffset(prize.rotation);
     const movedAnchorError = Math.hypot(
       prize.centerX + movedOffset.x - movedPoint.x,
@@ -318,7 +318,7 @@ const desktop = await evaluate(`(async () => {
     rewardResolved: true,
   };
   game.grab.updateCarriedPrize(simStart);
-  const initialAttachment = game.claw.getGrabPoint();
+  const initialAttachment = game.claw.getCarryAttachmentPoint();
   const initialComOffset = carried.getGrabAnchorOffset(carried.rotation);
   const initialAttachmentError = Math.hypot(
     carried.centerX + initialComOffset.x - initialAttachment.x,
@@ -327,7 +327,7 @@ const desktop = await evaluate(`(async () => {
   const firstAngle = game.claw.swingAngle;
   game.claw.updateSwing(1 / 60);
   game.grab.updateCarriedPrize(simStart + 1000 / 60);
-  const movedAttachment = game.claw.getGrabPoint();
+  const movedAttachment = game.claw.getCarryAttachmentPoint();
   const movedComOffset = carried.getGrabAnchorOffset(carried.rotation);
   const movedAttachmentError = Math.hypot(
     carried.centerX + movedComOffset.x - movedAttachment.x,
