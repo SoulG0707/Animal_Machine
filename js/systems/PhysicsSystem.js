@@ -99,7 +99,9 @@ export class PhysicsSystem {
 
   getClawDescentLimit(claw, desiredY) {
     const bounds = claw.getColliderBounds();
-    const bottomOffset = bounds.bottom - claw.headY;
+    // claw.y is the assembly's upright reference point; headY is the short COM
+    // point and moves with the tilted head, so it must not define floor clearance.
+    const bottomOffset = bounds.bottom - claw.y;
     let limit = Math.min(desiredY, this.machine.floorY - bottomOffset - CLAW_COLLISION.floorClearance);
     const obstacles = [
       this.chute.divider,

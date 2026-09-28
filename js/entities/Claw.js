@@ -29,42 +29,60 @@ export class Claw {
   }
 
   get cableLength() {
-    return Math.max(0, this.y - 7);
+    return Math.max(0, this.pivotY);
+  }
+
+  get carriageX() {
+    return this.x;
+  }
+
+  get cableX() {
+    return this.carriageX;
+  }
+
+  get pivotX() {
+    return this.carriageX;
+  }
+
+  get pivotY() {
+    return Math.max(0, this.y - CLAW_MOVEMENT.swing.pivotToAssemblyOrigin);
   }
 
   get headOffsetX() {
-    return Math.sin(this.swingAngle) * this.cableLength;
+    return Math.sin(this.swingAngle) * CLAW_MOVEMENT.swing.centerOfMassOffset;
   }
 
   get headX() {
-    return this.x + this.headOffsetX;
+    return this.pivotX + this.headOffsetX;
   }
 
   get headY() {
-    return this.y;
+    return this.pivotY + Math.cos(this.swingAngle) * CLAW_MOVEMENT.swing.centerOfMassOffset;
   }
 
   get bodyAngle() {
-    return this.swingAngle * 0.16;
+    // Positive physics angles mean the claw assembly swings to the right.
+    // Canvas uses a downward Y axis, so its rotation sign is inverted.
+    return -this.swingAngle;
   }
 
   localToWorld(localX, localY, output = {}) {
     const scaledX = localX * GAME_CONFIG.clawScale;
-    const scaledY = localY * GAME_CONFIG.clawScale;
+    const scaledY = CLAW_MOVEMENT.swing.pivotToAssemblyOrigin + localY * GAME_CONFIG.clawScale;
     const cosine = Math.cos(this.bodyAngle);
     const sine = Math.sin(this.bodyAngle);
-    output.x = this.headX + scaledX * cosine - scaledY * sine;
-    output.y = this.headY + scaledX * sine + scaledY * cosine;
+    output.x = this.pivotX + scaledX * cosine - scaledY * sine;
+    output.y = this.pivotY + scaledX * sine + scaledY * cosine;
     return output;
   }
 
   worldToLocal(worldX, worldY, output = {}) {
-    const deltaX = worldX - this.headX;
-    const deltaY = worldY - this.headY;
+    const deltaX = worldX - this.pivotX;
+    const deltaY = worldY - this.pivotY;
     const cosine = Math.cos(this.bodyAngle);
     const sine = Math.sin(this.bodyAngle);
     output.x = (deltaX * cosine + deltaY * sine) / GAME_CONFIG.clawScale;
-    output.y = (-deltaX * sine + deltaY * cosine) / GAME_CONFIG.clawScale;
+    output.y = (-deltaX * sine + deltaY * cosine - CLAW_MOVEMENT.swing.pivotToAssemblyOrigin) / GAME_CONFIG.clawScale;
     return output;
   }
 
@@ -120,10 +138,18 @@ export class Claw {
   clampToRail() {
     if (this.x <= CLAW_MOVEMENT.leftBound) {
       this.x = CLAW_MOVEMENT.leftBound;
-      if (this.velocityX < 0) this.velocityX = 0;
+      if (this.velocityX < 0) {
+        const previousVelocity = this.velocityX;
+        this.velocityX = 0;
+        this.transferMomentumFromVelocityChange(previousVelocity, this.velocityX);
+      }
     } else if (this.x >= CLAW_MOVEMENT.rightBound) {
       this.x = CLAW_MOVEMENT.rightBound;
-      if (this.velocityX > 0) this.velocityX = 0;
+      if (this.velocityX > 0) {
+        const previousVelocity = this.velocityX;
+        this.velocityX = 0;
+        this.transferMomentumFromVelocityChange(previousVelocity, this.velocityX);
+      }
     }
   }
 
@@ -135,11 +161,14 @@ export class Claw {
     }
     const previousVelocity = this.velocityX;
     if (direction !== 0) {
-      const targetVelocity = Math.sign(direction) * CLAW_MOVEMENT.maxSpeed;
+      const pushingAgainstRail = (this.x <= CLAW_MOVEMENT.leftBound && direction < 0)
+        || (this.x >= CLAW_MOVEMENT.rightBound && direction > 0);
+      const targetVelocity = pushingAgainstRail ? 0 : Math.sign(direction) * CLAW_MOVEMENT.maxSpeed;
       const reversing = this.velocityX !== 0 && Math.sign(this.velocityX) !== Math.sign(direction);
       const rate = reversing ? CLAW_MOVEMENT.reverseAcceleration : CLAW_MOVEMENT.acceleration;
       this.velocityX = moveTowards(this.velocityX, targetVelocity, rate * deltaSeconds);
     }
+    this.transferMomentumFromVelocityChange(previousVelocity, this.velocityX);
     this.accelerationX = (this.velocityX - previousVelocity) / deltaSeconds;
     this.x += this.velocityX * deltaSeconds;
     this.clampToRail();
@@ -151,19 +180,29 @@ export class Claw {
       -CLAW_MOVEMENT.maxSpeed,
       Math.min(CLAW_MOVEMENT.maxSpeed, this.velocityX + Math.sign(direction) * CLAW_MOVEMENT.tapImpulse),
     );
+    this.transferMomentumFromVelocityChange(previousVelocity, this.velocityX);
     this.accelerationX = (this.velocityX - previousVelocity) / (1 / 60);
   }
 
-  transferMomentumToSwing(velocityX) {
-    if (velocityX === 0) return 0;
+  transferMomentumFromVelocityChange(previousVelocity, currentVelocity, { automatic = false } = {}) {
+    const deltaVelocity = previousVelocity - currentVelocity;
+    if (deltaVelocity === 0) return 0;
     const swing = CLAW_MOVEMENT.swing;
-    const cableLength = Math.max(this.cableLength, swing.minimumMomentumCableLength);
-    const transferredVelocity = velocityX / cableLength * swing.releaseMomentumTransfer;
+    const weight = this.currentGrab?.pokemon?.weight || 0;
+    const loadMultiplier = weight > 0
+      ? 1 / (1 + Math.max(0, weight - 0.7) * (1 / swing.loadedMomentumMultiplier - 1))
+      : 1;
+    const movementMultiplier = automatic ? swing.automaticMomentumMultiplier : 1;
+    const transferredVelocity = deltaVelocity
+      * swing.releaseMomentumTransfer
+      / swing.centerOfMassOffset
+      * movementMultiplier
+      * loadMultiplier;
     this.swingVelocity = Math.max(
       -swing.maxReleaseAngularVelocity,
       Math.min(
         swing.maxReleaseAngularVelocity,
-        transferredVelocity + this.swingVelocity * swing.releaseVelocityRetention,
+        transferredVelocity + this.swingVelocity,
       ),
     );
     return transferredVelocity;
@@ -178,12 +217,14 @@ export class Claw {
         -CLAW_MOVEMENT.releaseCoastMax,
         Math.min(CLAW_MOVEMENT.releaseCoastMax, releaseVelocity * CLAW_MOVEMENT.releaseCoastTime),
       );
-      this.x += coastDistance;
-      this.clampToRail();
+      this.x = Math.max(
+        CLAW_MOVEMENT.leftBound,
+        Math.min(CLAW_MOVEMENT.rightBound, this.x + coastDistance),
+      );
     }
     this.velocityX = 0;
     this.accelerationX = 0;
-    if (transferMomentum) this.transferMomentumToSwing(releaseVelocity);
+    if (transferMomentum) this.transferMomentumFromVelocityChange(releaseVelocity, 0);
     return this.x - previousX;
   }
 
@@ -202,6 +243,7 @@ export class Claw {
     if (Math.abs(distance) < 0.25 && Math.abs(this.velocityX) < 6) {
       this.x = targetX;
       this.velocityX = 0;
+      this.transferMomentumFromVelocityChange(previousVelocity, this.velocityX, { automatic: true });
       this.accelerationX = (this.velocityX - previousVelocity) / deltaSeconds;
       return true;
     }
@@ -216,10 +258,15 @@ export class Claw {
       && (Math.sign(this.velocityX) !== direction || Math.abs(this.velocityX) > Math.abs(targetSpeed));
     const rate = mustBrake ? profile.deceleration : adjustedAcceleration;
     this.velocityX = moveTowards(this.velocityX, targetSpeed, rate * deltaSeconds);
+    this.transferMomentumFromVelocityChange(previousVelocity, this.velocityX, { automatic: true });
     const nextX = this.x + this.velocityX * deltaSeconds;
     const passedTarget = direction !== 0 && Math.sign(targetX - nextX) !== direction;
     this.x = passedTarget ? targetX : nextX;
-    if (passedTarget) this.velocityX = 0;
+    if (passedTarget) {
+      const crossedVelocity = this.velocityX;
+      this.velocityX = 0;
+      this.transferMomentumFromVelocityChange(crossedVelocity, this.velocityX, { automatic: true });
+    }
     this.clampToRail();
     this.accelerationX = (this.velocityX - previousVelocity) / deltaSeconds;
     return this.x === targetX && this.velocityX === 0;
@@ -228,28 +275,31 @@ export class Claw {
   updateSwing(deltaSeconds) {
     if (deltaSeconds <= 0) return;
     const swing = CLAW_MOVEMENT.swing;
-    let damping = swing.damping;
+    const weight = this.currentGrab?.pokemon?.weight || 0;
+    let damping = swing.damping + Math.max(0, weight - 0.7) * swing.loadedDampingPerWeight;
     if ([ClawState.DESCENDING, ClawState.CLOSING, ClawState.LIFTING, ClawState.SLIPPING].includes(this.state)) {
-      damping = swing.descendingDamping;
+      damping = swing.descendingDamping + Math.max(0, weight - 0.7) * swing.loadedDampingPerWeight;
     } else if ([ClawState.CARRYING, ClawState.RETURNING, ClawState.RELEASING, ClawState.WAITING_FOR_CHUTE].includes(this.state)) {
-      damping = swing.automaticDamping;
+      damping = swing.automaticDamping + Math.max(0, weight - 0.7) * swing.loadedDampingPerWeight;
     }
 
-    const carrySwingMultiplier = this.currentGrab?.swingMultiplier || 1;
-    const angularAcceleration = -this.swingAngle * swing.spring
-      - this.swingVelocity * damping
-      - this.accelerationX * swing.accelerationForce * carrySwingMultiplier;
-    this.swingVelocity += angularAcceleration * deltaSeconds;
-    this.swingAngle += this.swingVelocity * deltaSeconds;
+    const count = Math.max(1, Math.ceil(deltaSeconds / swing.integrationStep));
+    const step = deltaSeconds / count;
+    const loadFactor = weight > 0
+      ? 1 / (1 + Math.max(0, weight - 0.7) * 0.16)
+      : 1;
+    for (let index = 0; index < count; index += 1) {
+      const angularAcceleration = -this.swingAngle * swing.spring * loadFactor
+        - this.swingVelocity * damping;
+      this.swingVelocity += angularAcceleration * step;
+      this.swingAngle += this.swingVelocity * step;
 
-    if (Math.abs(this.swingAngle) > swing.maxAngle) {
-      this.swingAngle = Math.sign(this.swingAngle) * swing.maxAngle;
-      if (Math.sign(this.swingVelocity) === Math.sign(this.swingAngle)) this.swingVelocity *= -0.12;
+      if (Math.abs(this.swingAngle) > swing.maxAngle) {
+        this.swingAngle = Math.sign(this.swingAngle) * swing.maxAngle;
+        if (Math.sign(this.swingVelocity) === Math.sign(this.swingAngle)) this.swingVelocity *= -0.12;
+      }
     }
-    if (Math.abs(this.swingAngle) < swing.settleAngle && Math.abs(this.swingVelocity) < swing.settleVelocity && this.accelerationX === 0) {
-      this.swingAngle = 0;
-      this.swingVelocity = 0;
-    }
+    if (Math.abs(this.swingAngle) < 1e-8) this.swingAngle = 0;
     this.accelerationX = 0;
   }
 

@@ -61,7 +61,10 @@ const result = await evaluate(`(async () => {
     game.physics.updateGeometry(prize);
     game.claw.swingAngle = 0;
     game.claw.x = prize.worldCenterOfMassX;
-    game.claw.y = prize.worldCenterOfMassY - 31;
+    game.claw.y = game.claw.homeY;
+    const centeredGripPoint = game.grab.getGripPoint();
+    game.claw.x += prize.worldCenterOfMassX - centeredGripPoint.x;
+    game.claw.y += prize.worldCenterOfMassY - centeredGripPoint.y;
     const centered = game.grab.evaluateGrab(prize);
     game.claw.x += centered.horizontalReach * offsetRatio;
     const offset = game.grab.evaluateGrab(prize);
@@ -152,7 +155,7 @@ const pikachuChances = result.pikachu.chances;
 const bulbasaurChances = result.bulbasaur.chances;
 const valid = result.metadataComplete
   && result.pokemonCount === 15
-  && result.pikachu.centerQuality === 1
+  && Math.abs(result.pikachu.centerQuality - 1) < 0.000001
   && result.pikachu.centerPerfect
   && Math.abs(result.pikachu.centerTiltDegrees) < 0.01
   && result.pikachu.offsetQuality < result.pikachu.centerQuality
