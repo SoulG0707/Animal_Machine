@@ -1,5 +1,6 @@
 import { DEFAULT_DIFFICULTY } from '../config/difficultyConfig.js';
 import { GAME_CONFIG } from '../config/gameConfig.js';
+import { PlayerProfile } from '../storage/PlayerProfile.js';
 
 export const ClawState = Object.freeze({
   READY: 'ready',
@@ -32,11 +33,23 @@ export const PokemonState = Object.freeze({
 });
 
 export class GameState {
-  constructor({ bestScore = 0, trainerXp = 0, mode = DEFAULT_DIFFICULTY, pokedexCounts = {} } = {}) {
-    this.bestScore = bestScore;
-    this.trainerXp = trainerXp;
-    this.mode = mode;
-    this.pokedexCounts = pokedexCounts;
+  constructor(profileData = {}) {
+    const legacyCounts = profileData.pokedexCounts || {};
+    const profileSource = profileData.playerProfile || {
+      ...profileData,
+      collection: profileData.collection || Object.fromEntries(Object.entries(legacyCounts).map(([name, caughtCount]) => [
+        name, { discovered: Number(caughtCount) > 0, caughtCount, shinyCaughtCount: 0 },
+      ])),
+    };
+    this.profile = profileSource instanceof PlayerProfile
+      ? profileSource
+      : new PlayerProfile(profileSource, Object.keys(legacyCounts).map((name) => ({ name })));
+    Object.defineProperties(this, {
+      bestScore: { enumerable: true, get: () => this.profile.bestScore, set: (value) => { this.profile.bestScore = Math.max(0, Math.floor(Number(value) || 0)); } },
+      trainerXp: { enumerable: true, get: () => this.profile.trainerXp, set: (value) => { this.profile.trainerXp = Math.max(0, Math.floor(Number(value) || 0)); } },
+      mode: { enumerable: true, get: () => this.profile.mode, set: (value) => { this.profile.mode = value || DEFAULT_DIFFICULTY; } },
+    });
+    this.pokedexCounts = this.createLegacyCollectionView();
     this.appState = AppState.MENU;
     this.prizes = [];
     this.particles = [];
@@ -65,5 +78,34 @@ export class GameState {
     this.grabAttemptId = 0;
     this.turnTimeRemaining = this.turnTimeMax;
     this.autoGrabTriggered = false;
+    this.fever ||= { active: false, remaining: 0 };
+  }
+
+  createLegacyCollectionView() {
+    const state = this;
+    return new Proxy({}, {
+      get(_target, key) {
+        if (key === Symbol.toStringTag) return 'Object';
+        if (key === 'toJSON') return () => Object.fromEntries(Object.entries(state.profile.collection).map(([name, entry]) => [name, entry.caughtCount]));
+        if (typeof key !== 'string') return undefined;
+        return state.profile.collection[key]?.caughtCount || 0;
+      },
+      set(_target, key, value) {
+        if (typeof key !== 'string') return false;
+        const caughtCount = Math.max(0, Math.floor(Number(value) || 0));
+        const entry = state.profile.collection[key] || { discovered: false, caughtCount: 0, shinyCaughtCount: 0, firstCaughtAt: null, bestGrabQuality: 0 };
+        entry.caughtCount = caughtCount;
+        entry.discovered = entry.discovered || caughtCount > 0;
+        entry.shinyCaughtCount = Math.min(entry.shinyCaughtCount || 0, caughtCount);
+        state.profile.collection[key] = entry;
+        return true;
+      },
+      ownKeys() { return Reflect.ownKeys(state.profile.collection); },
+      has(_target, key) { return Object.hasOwn(state.profile.collection, key); },
+      getOwnPropertyDescriptor(_target, key) {
+        if (!Object.hasOwn(state.profile.collection, key)) return undefined;
+        return { enumerable: true, configurable: true, writable: true, value: state.profile.collection[key].caughtCount };
+      },
+    });
   }
 }

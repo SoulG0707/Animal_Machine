@@ -76,7 +76,7 @@ const valid = result.mode.state === 'hard' && result.mode.stored === 'hard'
   && result.afterFirst.count === result.afterFirst.storedCount
   && (!result.firstWasLocked || result.afterFirst.newFlag)
   && result.afterSecond.snapshot.combo === 2
-  && result.afterSecond.comboText.includes('×2')
+  && result.afterSecond.comboText.includes('×1.2')
   && !result.afterSecond.comboHidden
   && result.afterNewGame.score === 0 && result.afterNewGame.turns === 5 && result.afterNewGame.combo === 0
   && result.complete.visible && result.complete.finalScore === '123'

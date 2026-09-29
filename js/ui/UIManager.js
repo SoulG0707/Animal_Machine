@@ -3,6 +3,7 @@ import { GameHUD } from './GameHUD.js';
 import { GameOverModal } from './GameOverModal.js';
 import { MessageBanner } from './MessageBanner.js';
 import { PokedexUI } from './PokedexUI.js';
+import { ProgressionPanel } from './ProgressionPanel.js';
 import { StartScreen } from './StartScreen.js';
 
 export class UIManager {
@@ -20,6 +21,7 @@ export class UIManager {
     this.hud = new GameHUD(root);
     this.pokedex = new PokedexUI(root);
     this.startScreen = new StartScreen(root);
+    this.progression = new ProgressionPanel(root);
     this.backConfirm = new BackConfirmModal(root);
     this.gameOver = new GameOverModal(root);
     this.message = new MessageBanner(root.querySelector('#machine-message'), root.querySelector('#status-text'), getIsReady);

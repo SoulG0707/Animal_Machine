@@ -25,6 +25,7 @@
             <span>POKÉMON<br />MACHINE</span>
           </div>
           <div class="start-stats" aria-label="Trainer progress">
+            <span>COINS <strong id="start-coins">—</strong></span>
             <span>LV <strong id="start-level">1</strong></span>
             <span>BEST <strong id="start-best">000</strong></span>
           </div>
@@ -53,12 +54,13 @@
           </div>
 
           <div class="start-actions">
-            <button class="start-btn start-btn-primary" id="start-game-btn" type="button">BẮT ĐẦU <span aria-hidden="true">▶</span></button>
+            <button class="start-btn start-btn-primary" id="start-game-btn" type="button"><span class="start-button-label">BẮT ĐẦU</span><small class="start-play-cost" id="start-play-cost">COINS / PLAY</small><span aria-hidden="true">▶</span></button>
             <button class="start-btn start-btn-mode" id="open-mode-btn" type="button">CHẾ ĐỘ <span id="start-mode-badge">VỪA</span></button>
             <button class="start-btn start-btn-reset" id="reset-data-btn" type="button">RESET <span aria-hidden="true">↻</span></button>
           </div>
 
           <p class="start-current-mode">CHẾ ĐỘ HIỆN TẠI <strong id="start-current-mode">VỪA</strong></p>
+          <button class="start-profile-link" id="start-profile-btn" type="button" data-open-profile="daily">TRAINER PROFILE <span aria-hidden="true">↗</span></button>
         </div>
       </div>
     </section>
@@ -112,7 +114,10 @@
           </a>
         </div>
         <div class="header-note"><span class="status-dot" aria-hidden="true"></span><span class="status-copy">TRAINER MODE</span><span class="trainer-level" id="trainer-level" title="Trainer experience">LV 1</span></div>
-        <div class="high-score"><span>BEST</span><strong id="best-score">000</strong></div>
+        <div class="topbar-end">
+          <div class="wallet-stat"><span>COINS</span><strong id="coin-balance">—</strong></div>
+          <div class="high-score"><span>BEST</span><strong id="best-score">000</strong></div>
+        </div>
       </header>
 
       <section class="game-layout" aria-label="Máy gắp Pokémon Animal Machine">
@@ -132,6 +137,7 @@
             </div>
             <div class="character-list" id="character-list" role="group" aria-label="Pokédex collection"></div>
             <p class="character-detail" id="character-detail" aria-live="polite"></p>
+            <button class="profile-link" id="open-profile-btn" type="button" data-open-profile="pokedex">TRAINER PROFILE <span aria-hidden="true">↗</span></button>
           </section>
         </section>
 
@@ -156,6 +162,7 @@
                     <p>New Pokémon <strong id="modal-new-pokemon">None</strong></p>
                   </div>
                   <p class="final-best">Trainer best <strong id="modal-best-score">000</strong></p>
+                  <button class="complete-profile-btn" type="button" data-open-profile="daily">MISSIONS / PROFILE</button>
                   <button class="play-again-btn" id="play-again-btn" type="button">PLAY AGAIN <span aria-hidden="true">↻</span></button>
                 </section>
               </div>
@@ -187,17 +194,52 @@
           <div class="turns-block"><p class="eyebrow">TURNS LEFT</p><strong id="turns">05</strong><div class="turn-pips" id="turn-pips" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div></div>
           <div class="timer-block" aria-label="Thời gian còn lại của lượt"><p class="eyebrow">TIME</p><strong id="turn-timer" aria-live="off">15</strong><span>SECONDS</span></div>
           <section class="mission-card" aria-labelledby="mission-title">
-            <div class="mission-heading"><p class="eyebrow" id="mission-title">MISSION</p><span class="mission-icon" aria-hidden="true">✦</span></div>
+            <div class="mission-heading"><p class="eyebrow" id="mission-title">MISSION</p><button class="daily-open-btn" id="open-daily-btn" type="button" data-open-profile="daily" aria-label="Mở nhiệm vụ hằng ngày">DAILY <span id="daily-complete-count">0/3</span></button></div>
             <p class="mission-copy" id="mission-copy">Catch 3 Pokémon</p>
             <div class="mission-progress-row"><span id="mission-progress">0 / 3</span><span id="mission-state">IN PROGRESS</span></div>
             <div class="mission-track" aria-hidden="true"><span id="mission-fill"></span></div>
           </section>
+          <div class="fever-indicator" id="fever-indicator" hidden aria-live="polite"><span>FEVER ×2</span><strong id="fever-time">10</strong></div>
           <button class="reset-btn" id="reset-btn" type="button"><span aria-hidden="true">↻</span> NEW GAME</button>
         </aside>
       </section>
 
       <footer class="footer-note"><span>CATCH 'EM ALL</span><span>TRAINER'S PRIZE CABINET</span><span>© AM STUDIO</span></footer>
     </main>
+    <div class="progression-modal" id="profile-modal" aria-hidden="true" hidden>
+      <section class="progression-dialog" role="dialog" aria-modal="true" aria-labelledby="profile-title">
+        <header class="progression-header">
+          <div><p class="eyebrow">TRAINER RECORD</p><h2 id="profile-title">TRAINER PROFILE</h2></div>
+          <div class="progression-header-actions"><span class="profile-coins">● <strong id="profile-coins">—</strong></span><button id="close-profile-btn" class="profile-close-btn" type="button" aria-label="Đóng hồ sơ">×</button></div>
+        </header>
+        <nav class="progression-tabs" role="tablist" aria-label="Trainer profile sections">
+          <button type="button" role="tab" data-profile-tab="daily" aria-selected="true">DAILY</button>
+          <button type="button" role="tab" data-profile-tab="achievements" aria-selected="false">ACHIEVEMENTS</button>
+          <button type="button" role="tab" data-profile-tab="pokedex" aria-selected="false">POKÉDEX</button>
+          <button type="button" role="tab" data-profile-tab="stats" aria-selected="false">STATS</button>
+        </nav>
+        <div class="progression-content">
+          <section class="profile-panel" data-profile-panel="daily" role="tabpanel" aria-label="Daily missions">
+            <div class="panel-title-row"><h3>DAILY MISSIONS</h3><span id="daily-date"></span></div>
+            <div class="daily-mission-list" id="daily-mission-list"></div>
+            <p class="daily-bonus-note" id="daily-bonus-note">Daily login bonus is awarded once each day.</p>
+          </section>
+          <section class="profile-panel" data-profile-panel="achievements" role="tabpanel" aria-label="Achievements" hidden>
+            <div class="panel-title-row"><h3>ACHIEVEMENTS</h3><span id="achievement-count">0 / 12</span></div>
+            <div class="achievement-list" id="achievement-list"></div>
+          </section>
+          <section class="profile-panel" data-profile-panel="pokedex" role="tabpanel" aria-label="Pokédex" hidden>
+            <div class="panel-title-row"><h3>POKÉDEX</h3><span id="profile-pokedex-count">0 / 15 DISCOVERED</span></div>
+            <div class="profile-pokedex-list" id="profile-pokedex-list"></div>
+          </section>
+          <section class="profile-panel" data-profile-panel="stats" role="tabpanel" aria-label="Player statistics" hidden>
+            <div class="panel-title-row"><h3>TRAINER STATS</h3><span id="profile-level">LV 1</span></div>
+            <div class="player-stats-grid" id="player-stats-grid"></div>
+          </section>
+        </div>
+      </section>
+    </div>
+    <div class="progression-toast-region" id="progression-toasts" aria-live="polite" aria-atomic="false"></div>
     <script type="module" src="./js/main.js"></script>
   </body>
 </html>

@@ -1,3 +1,5 @@
+import { PROGRESSION_CONFIG } from '../config/progressionConfig.js';
+
 export class GameHUD {
   constructor(root = document) {
     this.score = root.querySelector('#score');
@@ -13,6 +15,10 @@ export class GameHUD {
     this.missionProgress = root.querySelector('#mission-progress');
     this.missionState = root.querySelector('#mission-state');
     this.missionFill = root.querySelector('#mission-fill');
+    this.coins = root.querySelector('#coin-balance');
+    this.dailyCompleteCount = root.querySelector('#daily-complete-count');
+    this.feverIndicator = root.querySelector('#fever-indicator');
+    this.feverTime = root.querySelector('#fever-time');
   }
 
   render(state, level, experienceToNext) {
@@ -21,11 +27,29 @@ export class GameHUD {
     this.renderTimer(state.turnTimeRemaining);
     this.best.textContent = String(state.bestScore).padStart(3, '0');
     this.turnPips.querySelectorAll('i').forEach((pip, index) => pip.classList.toggle('empty', index >= state.turns));
-    const multiplier = Math.min(state.currentCombo, 3);
     this.combo.hidden = state.currentCombo < 2;
-    if (state.currentCombo >= 2) this.combo.textContent = `COMBO ×${multiplier}`;
+    if (state.currentCombo >= 2) {
+      const multiplier = PROGRESSION_CONFIG.comboMultipliers[Math.min(state.currentCombo, PROGRESSION_CONFIG.comboMultipliers.length) - 1] || 1;
+      this.combo.textContent = `COMBO ×${Number.isInteger(multiplier) ? multiplier : multiplier.toFixed(2).replace(/0$/, '')}`;
+    }
     this.trainerLevel.textContent = `LV ${level}`;
     this.trainerLevel.title = `${state.trainerXp} XP · ${experienceToNext} XP to next level`;
+    if (this.coins) this.coins.textContent = String(state.profile.coins);
+    this.renderFever(state.fever);
+  }
+
+  renderFever(fever = { active: false, remaining: 0 }) {
+    if (!this.feverIndicator) return;
+    this.feverIndicator.hidden = !fever?.active;
+    this.feverTime.textContent = String(Math.ceil(fever?.remaining || 0));
+    document.body.classList.toggle('fever-mode', Boolean(fever?.active));
+  }
+
+  renderDailyMissions(missions = []) {
+    if (!this.dailyCompleteCount) return;
+    const completed = missions.filter((mission) => mission.completed).length;
+    this.dailyCompleteCount.textContent = `${completed}/${missions.length}`;
+    this.dailyCompleteCount.closest('button')?.classList.toggle('has-complete', completed > 0);
   }
 
   renderTimer(secondsRemaining) {

@@ -42,6 +42,7 @@ export class Pokemon {
       touchingSurface: false,
       bounceCount: 0,
       shiny,
+      variant: shiny ? 'shiny' : 'normal',
       spawnIndex: index,
     });
     this.geometry = createPokemonGeometry(character, this.width, this.height);

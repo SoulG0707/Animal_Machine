@@ -12,13 +12,16 @@ export class GameOverModal {
 
   bind(onPlayAgain) { this.playAgain.addEventListener('click', onPlayAgain); }
 
-  show(state) {
+  show(state, { canPlay = true, playCost = 0 } = {}) {
     this.finalScore.textContent = String(state.score).padStart(3, '0');
     this.bestScore.textContent = String(state.bestScore).padStart(3, '0');
     this.caught.textContent = String(state.caughtThisGame);
     this.combo.textContent = `×${state.bestCombo}`;
     this.newPokemon.textContent = state.newUnlocksThisGame.length ? state.newUnlocksThisGame.join(', ') : 'None this run';
     this.newBest.hidden = !state.newBestThisGame;
+    this.playAgain.disabled = !canPlay;
+    this.playAgain.title = canPlay ? `${playCost} COINS PER PLAY` : 'NOT ENOUGH COINS · Open Trainer Profile for missions';
+    this.playAgain.textContent = canPlay ? `PLAY AGAIN · ${playCost} COINS ↻` : 'NOT ENOUGH COINS';
     this.overlay.hidden = false;
     this.overlay.setAttribute('aria-hidden', 'false');
     this.playAgain.focus({ preventScroll: true });

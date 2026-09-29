@@ -352,6 +352,7 @@ export class GrabSystem {
     this.claw.caught = null;
     this.claw.slipPhase = 'retracting';
     this.claw.openAmount = 0.58;
+    this.emitHook('onMiss', { pokemon: prize, reason: 'grip-slip' });
     this.combo.reset();
     this.ui.hud.resetEffects();
     this.refresh();
@@ -403,7 +404,11 @@ export class GrabSystem {
           this.claw.openAmount = 0;
           const candidate = this.selectPrizeFromClosedClaw();
           const secured = this.securePrize(candidate, time);
-          if (!secured) this.emitHook('onClawMiss', { x: this.claw.headX, y: this.claw.headY });
+          if (!secured) {
+            const miss = { x: this.claw.headX, y: this.claw.headY, reason: 'empty-grab' };
+            this.emitHook('onClawMiss', miss);
+            this.emitHook('onMiss', miss);
+          }
           this.claw.phaseElapsed = 0;
           this.claw.state = ClawState.LIFTING;
         }
@@ -474,10 +479,10 @@ export class GrabSystem {
         const dropResult = this.physics.updateChuteDrop(prize, elapsed);
         if (dropResult.sensorTriggered && !grab.rewardResolved) {
           grab.rewardResolved = true;
-          const rewardStatus = this.score.processCatch(grab);
+          this.score.processCatch(grab);
           this.renderer.spawnCatchParticles(prize);
           this.refresh({ animateScore: true, animateCombo: true, pokedex: true });
-          this.ui.message.showStatus(`CAUGHT! · ${rewardStatus}`, 1800);
+          this.ui.message.showStatus(prize.shiny ? 'SHINY!' : 'CAUGHT!', 1800);
         }
         if (dropResult.complete) {
           prize.collected = true; this.claw.droppingPrize = null; this.claw.dropGrab = null;

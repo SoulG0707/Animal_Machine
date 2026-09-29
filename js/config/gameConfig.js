@@ -1,3 +1,5 @@
+import { PROGRESSION_CONFIG } from './progressionConfig.js';
+
 export const MACHINE = Object.freeze({ width: 720, height: 650, floorY: 545 });
 
 export const PHYSICS = Object.freeze({
@@ -121,7 +123,7 @@ export const GAME_CONFIG = Object.freeze({
   prizeScale: 0.8,
   clawLaneBottom: 136,
   prizeAreaPadding: 12,
-  shinyChance: 0.018,
+  shinyChance: PROGRESSION_CONFIG.shinyChance,
   experiencePerLevel: 250,
   initialTurns: 5,
   debugPokemonPhysics: false,
@@ -129,6 +131,7 @@ export const GAME_CONFIG = Object.freeze({
 
 export const RARITY_COLORS = Object.freeze({
   common: '#52a879',
+  uncommon: '#72a84d',
   rare: '#4b9dce',
   epic: '#a36ac7',
   legendary: '#e9ad35',

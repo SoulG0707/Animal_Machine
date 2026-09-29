@@ -1,0 +1,211 @@
+.topbar-end {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: clamp(10px, 1.7vw, 24px);
+}
+
+.wallet-stat {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted-light);
+  font: 500 10px var(--font-game);
+  letter-spacing: .13em;
+}
+
+.wallet-stat::before { color: var(--yellow); content: '●'; font-size: 12px; text-shadow: 0 1px 2px rgba(36, 51, 70, .2); }
+.wallet-stat strong { color: var(--ink); font-size: 15px; font-weight: 700; }
+
+.profile-link, .start-profile-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  color: var(--teal);
+  border: 1px solid rgba(57, 149, 109, .28);
+  border-radius: 7px;
+  background: rgba(255, 252, 243, .72);
+  font: 500 9px var(--font-game);
+  letter-spacing: .08em;
+  cursor: pointer;
+}
+
+.profile-link { min-height: 30px; margin-top: 4px; padding: 0 9px; }
+.start-profile-link { min-height: 35px; padding: 0 13px; }
+.profile-link:hover, .start-profile-link:hover { border-color: var(--teal); background: rgba(57, 149, 109, .09); }
+.profile-link:focus-visible, .start-profile-link:focus-visible, .daily-open-btn:focus-visible { outline: 3px solid rgba(57, 149, 109, .3); outline-offset: 2px; }
+
+.daily-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 5px;
+  border: 1px solid rgba(57, 149, 109, .25);
+  border-radius: 999px;
+  color: var(--teal);
+  background: rgba(57, 149, 109, .07);
+  font: 500 7px var(--font-game);
+  letter-spacing: .05em;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.daily-open-btn.has-complete { border-color: rgba(57, 149, 109, .45); background: rgba(57, 149, 109, .13); }
+.complete-profile-btn { display: block; min-height: 36px; margin: 0 auto 8px; padding: 0 14px; border: 1px solid rgba(255, 252, 243, .25); border-radius: 7px; color: #d8e2dd; background: transparent; font: 500 8px var(--font-game); letter-spacing: .07em; cursor: pointer; }
+.complete-profile-btn:hover { border-color: var(--yellow); color: var(--yellow); }
+.complete-profile-btn:focus-visible { outline: 3px solid rgba(255, 211, 66, .3); outline-offset: 2px; }
+
+.fever-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 9px;
+  padding: 6px 8px;
+  border: 1px solid rgba(231, 171, 53, .44);
+  border-radius: 7px;
+  color: #795c15;
+  background: rgba(255, 211, 66, .2);
+  font: 700 9px var(--font-game);
+  letter-spacing: .06em;
+}
+.fever-indicator[hidden] { display: none; }
+.fever-indicator strong { font-size: 12px; font-variant-numeric: tabular-nums; }
+.fever-mode .machine-lights i { animation: fever-lights 1.25s ease-in-out infinite alternate; }
+.fever-mode .machine-lights i:nth-child(even) { animation-delay: 430ms; }
+
+@keyframes fever-lights {
+  from { filter: brightness(1); box-shadow: 0 0 0 2px rgba(230, 70, 77, .12); }
+  to { filter: brightness(1.13); box-shadow: 0 0 7px rgba(255, 211, 66, .48); }
+}
+
+.progression-modal {
+  position: fixed;
+  z-index: 140;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  background: rgba(29, 43, 43, .58);
+  backdrop-filter: blur(4px);
+  animation: modal-fade-in 170ms ease-out both;
+}
+.progression-modal[hidden] { display: none; }
+
+.progression-dialog {
+  display: flex;
+  width: min(100%, 720px);
+  max-height: min(780px, calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom)));
+  min-height: min(420px, calc(100dvh - 24px));
+  flex-direction: column;
+  overflow: hidden;
+  border: 3px solid var(--teal);
+  border-radius: 15px;
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: 7px 9px 0 rgba(15, 28, 31, .23), 0 20px 50px rgba(36, 51, 70, .18);
+  animation: modal-rise-in 210ms ease-out both;
+}
+
+.progression-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px 19px 12px; }
+.progression-header .eyebrow { margin: 0 0 4px; color: var(--teal); font-size: 8px; }
+.progression-header h2 { margin: 0; font-size: clamp(18px, 4vw, 24px); letter-spacing: -.04em; }
+.progression-header-actions { display: flex; align-items: center; gap: 10px; }
+.profile-coins { color: var(--teal); font: 500 10px var(--font-game); letter-spacing: .06em; white-space: nowrap; }
+.profile-coins strong { color: var(--ink); font-size: 14px; }
+.profile-close-btn { width: 34px; height: 34px; border: 1px solid var(--border); border-radius: 50%; color: var(--ink); background: transparent; font-size: 23px; line-height: 1; cursor: pointer; }
+
+.progression-tabs { display: flex; gap: 5px; overflow-x: auto; padding: 0 16px 10px; border-bottom: 1px solid var(--border); scrollbar-width: thin; }
+.progression-tabs button { min-height: 35px; padding: 0 11px; border: 1px solid transparent; border-radius: 7px; color: var(--muted); background: transparent; font: 500 8px var(--font-game); letter-spacing: .06em; white-space: nowrap; cursor: pointer; }
+.progression-tabs button[aria-selected="true"] { border-color: rgba(57, 149, 109, .28); color: var(--teal); background: rgba(57, 149, 109, .1); }
+.progression-tabs button:focus-visible, .profile-close-btn:focus-visible { outline: 3px solid rgba(57, 149, 109, .3); outline-offset: 2px; }
+.progression-content { min-height: 0; flex: 1; overflow: auto; overscroll-behavior: contain; padding: 14px 17px 18px; }
+.profile-panel[hidden] { display: none; }
+.panel-title-row { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.panel-title-row h3 { margin: 0; color: var(--teal); font: 500 10px var(--font-game); letter-spacing: .11em; }
+.panel-title-row > span { color: var(--muted-light); font: 500 8px var(--font-game); letter-spacing: .05em; text-align: right; }
+.daily-mission-list, .achievement-list { display: grid; gap: 8px; }
+.daily-mission-item, .achievement-item { border: 1px solid var(--border); border-radius: 9px; background: rgba(255, 255, 255, .46); }
+.daily-mission-item { padding: 10px 11px; }
+.daily-mission-item.is-complete { border-color: rgba(57, 149, 109, .36); background: rgba(57, 149, 109, .07); }
+.progress-item-header, .progress-item-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.progress-item-header strong { color: var(--ink); font: 600 12px var(--font-ui); }
+.progress-reward { color: #887022; font: 500 8px var(--font-game); letter-spacing: .04em; white-space: nowrap; }
+.progress-item-row { margin-top: 7px; color: var(--muted); font: 8px var(--font-game); }
+.progress-item-state { color: var(--teal); }
+.progress-track { height: 5px; margin-top: 7px; overflow: hidden; border-radius: 99px; background: rgba(36, 51, 70, .11); }
+.progress-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--teal), #81c765); transition: width 220ms ease; }
+.daily-bonus-note { margin: 11px 0 0; color: var(--muted); font: 9px var(--font-game); letter-spacing: .03em; }
+.daily-bonus-note.is-complete { color: var(--teal); font-weight: 700; }
+
+.achievement-item { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 9px; padding: 9px 10px; }
+.achievement-icon { display: grid; width: 26px; height: 26px; place-items: center; border-radius: 50%; color: var(--muted-light); background: rgba(36, 51, 70, .07); }
+.achievement-item.is-unlocked .achievement-icon { color: #9b7716; background: rgba(255, 211, 66, .22); }
+.achievement-copy { display: grid; min-width: 0; gap: 2px; }
+.achievement-copy strong { color: var(--ink); font: 700 9px var(--font-game); letter-spacing: .05em; }
+.achievement-copy span { color: var(--muted); font: 10px var(--font-ui); }
+.achievement-progress { grid-column: 2 / -1; justify-self: end; color: var(--teal); font: 8px var(--font-game); }
+.achievement-item .progress-reward { grid-column: 3; grid-row: 1; }
+
+.profile-pokedex-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.profile-pokedex-card { display: grid; grid-template-columns: 48px minmax(0, 1fr); grid-template-rows: auto auto; align-items: center; gap: 2px 8px; min-width: 0; padding: 7px; border: 1px solid var(--border); border-left: 3px solid var(--rarity-color, var(--teal)); border-radius: 8px; background: rgba(255, 255, 255, .48); }
+.profile-pokedex-card.is-locked { border-left-color: #bac3c3; }
+.profile-pokemon-image { grid-row: 1 / 3; width: 48px; height: 48px; object-fit: contain; }
+.profile-pokedex-card.is-locked .profile-pokemon-image { filter: brightness(0); opacity: .36; }
+.profile-pokemon-copy { display: grid; min-width: 0; align-content: center; gap: 2px; }
+.profile-pokemon-copy strong { overflow: hidden; color: var(--ink); font: 700 9px var(--font-game); letter-spacing: .03em; text-overflow: ellipsis; white-space: nowrap; }
+.rarity-badge { width: fit-content; padding: 2px 4px; border-radius: 4px; color: var(--rarity-color, var(--teal)); background: color-mix(in srgb, var(--rarity-color, var(--teal)) 11%, white); font: 500 7px var(--font-game); letter-spacing: .05em; }
+.profile-pokedex-card.rarity-common, .rarity-badge.rarity-common { --rarity-color: #52a879; }
+.profile-pokedex-card.rarity-uncommon, .rarity-badge.rarity-uncommon { --rarity-color: #72a84d; }
+.profile-pokedex-card.rarity-rare, .rarity-badge.rarity-rare { --rarity-color: #4b9dce; }
+.profile-pokedex-card.rarity-epic, .rarity-badge.rarity-epic { --rarity-color: #a36ac7; }
+.profile-pokedex-card.rarity-legendary, .rarity-badge.rarity-legendary { --rarity-color: #c28b1c; }
+.profile-catch-count { color: var(--muted); font: 7px var(--font-game); letter-spacing: .02em; }
+.profile-variants { display: flex; grid-column: 2; justify-content: space-between; gap: 4px; min-width: 0; color: var(--muted-light); font: 7px var(--font-game); letter-spacing: -.02em; }
+.profile-variants .variant-found { color: var(--teal); }
+.profile-variants .variant-shiny { color: #967214; }
+
+.player-stats-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.player-stat-item { display: grid; gap: 6px; padding: 12px; border: 1px solid var(--border); border-radius: 8px; background: rgba(255, 255, 255, .48); }
+.player-stat-item span { color: var(--muted); font: 8px var(--font-game); letter-spacing: .08em; }
+.player-stat-item strong { color: var(--ink); font: 700 20px var(--font-ui); font-variant-numeric: tabular-nums; }
+
+.progression-toast-region { position: fixed; z-index: 180; right: 14px; bottom: max(14px, env(safe-area-inset-bottom)); display: grid; width: min(360px, calc(100vw - 28px)); gap: 7px; pointer-events: none; }
+.progression-toast { padding: 10px 13px; border: 1px solid rgba(255, 211, 66, .65); border-left: 4px solid var(--teal); border-radius: 8px; color: var(--ink); background: rgba(255, 252, 243, .97); box-shadow: 0 8px 24px rgba(36, 51, 70, .16); font: 500 9px var(--font-game); letter-spacing: .05em; opacity: 0; transform: translateY(8px); transition: opacity 170ms ease, transform 170ms ease; }
+.progression-toast.is-visible { opacity: 1; transform: translateY(0); }
+.progression-toast.tone-shiny, .progression-toast.tone-legendary { border-left-color: #d7a72a; }
+.progression-toast.tone-achievement, .progression-toast.tone-epic { border-left-color: #9863ba; }
+.progression-toast.tone-fever, .progression-toast.tone-bonus { border-left-color: var(--coral); }
+
+@media (max-width: 767px) {
+  .topbar-end { gap: 8px; }
+  .wallet-stat { gap: 4px; font-size: 8px; letter-spacing: .08em; }
+  .wallet-stat::before { font-size: 10px; }
+  .wallet-stat strong { font-size: 12px; }
+  .progression-dialog { width: 100%; max-height: min(760px, calc(100dvh - 24px - env(safe-area-inset-top) - env(safe-area-inset-bottom))); min-height: min(400px, calc(100dvh - 24px)); border-width: 2px; border-radius: 12px; }
+  .progression-header { padding: 13px 13px 9px; }
+  .progression-tabs { gap: 2px; padding: 0 8px 8px; }
+  .progression-tabs button { min-height: 34px; padding: 0 8px; font-size: 7px; }
+  .progression-content { padding: 12px 11px 15px; }
+  .profile-pokedex-list { gap: 6px; }
+  .fever-indicator { grid-column: 1 / -1; }
+  .profile-pokedex-card { grid-template-columns: 40px minmax(0, 1fr); gap: 2px 5px; padding: 5px; }
+  .profile-pokemon-image { width: 40px; height: 44px; }
+  .profile-pokemon-copy strong { font-size: 8px; }
+  .profile-variants { font-size: 6px; }
+  .progression-toast-region { right: 10px; bottom: max(10px, env(safe-area-inset-bottom)); left: 10px; width: auto; }
+  .progression-toast { padding: 9px 11px; font-size: 8px; }
+}
+
+@media (max-width: 380px) {
+  .topbar-end { gap: 6px; }
+  .wallet-stat, .high-score { gap: 3px; font-size: 7px; }
+  .wallet-stat strong, .high-score strong { font-size: 11px; }
+  .achievement-item { grid-template-columns: 24px minmax(0, 1fr) auto; gap: 6px; padding: 8px; }
+  .achievement-icon { width: 23px; height: 23px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .fever-mode .machine-lights i { animation: none; }
+  .progression-modal, .progression-dialog, .progression-toast { animation: none; transition: none; }
+}

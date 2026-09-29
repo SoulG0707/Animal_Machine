@@ -1,16 +1,23 @@
 import { GAME_CONFIG, MACHINE } from '../config/gameConfig.js';
 import { POKEMON_DATA } from '../config/pokemonData.js';
+import { PROGRESSION_CONFIG } from '../config/progressionConfig.js';
 import { Claw } from '../entities/Claw.js';
 import { PrizeChute } from '../entities/PrizeChute.js';
 import { KeyboardInput } from '../input/KeyboardInput.js';
 import { TouchInput } from '../input/TouchInput.js';
 import { StorageService } from '../storage/StorageService.js';
+import { GameEventBus } from './GameEventBus.js';
+import { AchievementSystem } from '../systems/AchievementSystem.js';
 import { ComboSystem } from '../systems/ComboSystem.js';
+import { CollectionSystem } from '../systems/CollectionSystem.js';
+import { DailyMissionSystem } from '../systems/DailyMissionSystem.js';
 import { DifficultySystem } from '../systems/DifficultySystem.js';
 import { GrabSystem } from '../systems/GrabSystem.js';
 import { MissionSystem } from '../systems/MissionSystem.js';
 import { PhysicsSystem } from '../systems/PhysicsSystem.js';
 import { RenderSystem } from '../systems/RenderSystem.js';
+import { ProgressionSystem } from '../systems/ProgressionSystem.js';
+import { RewardSystem } from '../systems/RewardSystem.js';
 import { ScoreSystem } from '../systems/ScoreSystem.js';
 import { SpawnSystem } from '../systems/SpawnSystem.js';
 import { UIManager } from '../ui/UIManager.js';
@@ -24,6 +31,7 @@ export class Game {
     this.geometryLabActive = new URLSearchParams(location.search).get('geometryLab') === '1';
     this.storage = new StorageService({ temporary: this.geometryLabActive });
     this.state = new GameState(this.storage.loadProfile(POKEMON_DATA));
+    this.events = new GameEventBus();
     this.chute = new PrizeChute(MACHINE);
     this.claw = new Claw(this.chute.centerX);
     this.prizeBounds = {
@@ -35,9 +43,9 @@ export class Game {
     this.ui = new UIManager(() => this.claw.state === ClawState.READY);
     this.ui.canvasFrame.style.setProperty('--claw-lane-height', `${GAME_CONFIG.clawLaneBottom / MACHINE.height * 100}%`);
     this.difficulty = new DifficultySystem(this.state, this.storage);
-    this.combo = new ComboSystem(this.state);
+    this.combo = new ComboSystem(this.state, this.events);
     this.missions = new MissionSystem(this.state, POKEMON_DATA);
-    this.score = new ScoreSystem(this.state, this.storage, this.combo, this.missions);
+    this.score = new ScoreSystem(this.state, this.storage, this.combo, this.missions, this.events);
     this.physics = new PhysicsSystem(this.state, MACHINE, this.chute, this.prizeBounds);
     this.spawn = new SpawnSystem(this.state, POKEMON_DATA, MACHINE, this.chute, this.prizeBounds, this.physics);
     this.characters = this.spawn.loadImages();
@@ -45,6 +53,11 @@ export class Game {
     this.missions.characters = this.characters;
     this.renderer = new RenderSystem(this.ui.canvas, this.state, MACHINE, this.chute, this.claw);
     this.renderer.debugAssetPlaceholders = this.geometryLabActive;
+    this.rewards = new RewardSystem();
+    this.collection = new CollectionSystem(this.state, this.storage, this.events, this.characters);
+    this.progression = new ProgressionSystem(this.state, this.storage, this.events, this.rewards, this.combo);
+    this.dailyMissions = new DailyMissionSystem(this.state.profile, this.storage, this.events, this.characters);
+    this.achievements = new AchievementSystem(this.state.profile, this.storage, this.events);
     this.grab = new GrabSystem({
       state: this.state,
       claw: this.claw,
@@ -59,17 +72,24 @@ export class Game {
       finishGame: () => this.finishGame(),
       onTurnReady: () => this.resetTurnTimer(),
     });
+    this.grab.setHooks({
+      onMiss: (payload) => this.events.emit('pokemon:missed', payload),
+    });
+    this.ui.progression.bindEvents(this.events);
+    this.bindProgressionEvents();
     this.bindUI();
     this.bindInput();
     this.ui.pokedex.build(this.characters, (character) => {
       this.state.selectedCharacter = character;
-      this.ui.pokedex.renderDetail(character, this.state.pokedexCounts);
+      this.ui.pokedex.renderDetail(character, this.state.pokedexCounts, this.state.profile.collection);
     });
     this.resetCurrentRun();
     this.state.appState = AppState.MENU;
     this.ui.startScreen.show();
     this.ui.setBackVisible(false);
     this.refreshStartScreen();
+    this.progression.claimDailyLoginBonus();
+    this.refresh();
     this.loop = new GameLoop((time) => this.update(time));
     this.assetsReady = false;
     this.ui.startScreen.setLoading(true);
@@ -87,8 +107,9 @@ export class Game {
 
   bindUI() {
     this.ui.startScreen.bind({
-      onStart: () => this.startGame(),
+      onStart: () => this.startPaidGame(),
       onReset: () => this.resetAllSavedData(),
+      onProfile: (tab, opener) => this.openProgression(tab, opener),
       onModeSelect: (mode) => {
         const selected = this.difficulty.select(mode);
         if (selected) {
@@ -104,17 +125,35 @@ export class Game {
       onStay: () => this.cancelReturnToMenu(),
       onLeave: () => this.returnToMenu(),
     });
-    this.ui.newGameButton.addEventListener('click', () => this.resetCurrentRun());
+    this.ui.progression.bind({
+      onOpen: (tab, opener) => this.openProgression(tab, opener),
+      onClose: () => {
+        if (this.profileResumePending && this.state.appState === AppState.PAUSED) {
+          this.profileResumePending = false;
+          this.resumeGame();
+        }
+      },
+    });
+    this.ui.newGameButton.addEventListener('click', () => this.startPaidGame());
     this.ui.gameOver.bind(() => {
-      this.state.appState = AppState.PLAYING;
-      this.resetCurrentRun();
-      this.resumeGame();
-      this.ui.grabButton.focus({ preventScroll: true });
+      this.startPaidGame({ fromGameOver: true });
     });
     document.addEventListener('visibilitychange', () => {
       this.stopMoving();
       this.state.lastTime = 0;
     });
+  }
+
+  bindProgressionEvents() {
+    this.events.on('collection:changed', () => this.refresh({ pokedex: true }));
+    this.events.on('player:coinsChanged', () => this.refresh());
+    this.events.on('player:progressChanged', () => this.refresh());
+    this.events.on('daily:progress', () => {
+      this.ui.hud.renderDailyMissions(this.dailyMissions.missions);
+      this.renderProgressionProfile();
+    });
+    this.events.on('combo:fever', () => this.ui.hud.renderFever(this.state.fever));
+    this.events.on('combo:feverEnded', () => this.ui.hud.renderFever(this.state.fever));
   }
 
   bindInput() {
@@ -206,6 +245,42 @@ export class Game {
     return true;
   }
 
+  startPaidGame({ fromGameOver = false } = {}) {
+    if (!this.assetsReady) return false;
+    if (this.geometryLabActive || this.progression.spendCoins(PROGRESSION_CONFIG.playCost, 'play')) {
+      if (!this.geometryLabActive) this.progression.recordPlay();
+      if (fromGameOver) this.ui.gameOver.hide();
+      const started = this.startGame();
+      if (started) {
+        this.ui.message.showStatus('COIN IN', 1100);
+        this.refresh();
+      }
+      return started;
+    }
+    if (fromGameOver) this.returnToMenu();
+    this.ui.progression.showToast('NOT ENOUGH COINS · COME BACK FOR THE DAILY BONUS', 'bonus');
+    return false;
+  }
+
+  openProgression(tab = 'daily', opener = document.activeElement) {
+    this.profileResumePending = this.state.appState === AppState.PLAYING;
+    if (this.profileResumePending) this.pauseGame();
+    this.renderProgressionProfile();
+    this.ui.progression.open(tab, opener);
+  }
+
+  renderProgressionProfile() {
+    if (!this.ui?.progression || !this.state?.profile || !this.dailyMissions || !this.achievements) return;
+    this.ui.progression.render({
+      profile: this.state.profile,
+      missions: this.dailyMissions.missions,
+      achievements: this.achievements.getItems(),
+      characters: this.characters,
+      level: this.score.trainerLevel(),
+    });
+    this.ui.hud.renderDailyMissions(this.dailyMissions.missions);
+  }
+
   enterGame() { this.startGame(); }
 
   requestReturnToMenu() {
@@ -274,11 +349,13 @@ export class Game {
   resetAllSavedData() {
     if (!window.confirm('Bạn có chắc muốn reset toàn bộ dữ liệu không?')) return;
     this.storage.clearAll();
-    this.state.bestScore = 0;
-    this.state.trainerXp = 0;
+    this.state.profile.reset(this.characters);
     this.difficulty.reset();
-    Object.keys(this.state.pokedexCounts).forEach((name) => { this.state.pokedexCounts[name] = 0; });
+    this.state.fever = { active: false, remaining: 0 };
+    this.dailyMissions.ensureCurrentDay();
+    this.achievements.evaluate();
     this.resetCurrentRun();
+    this.progression.claimDailyLoginBonus();
     this.refreshStartScreen();
   }
 
@@ -297,6 +374,7 @@ export class Game {
     this.spawn.createPrizes();
     this.missions.start();
     this.refresh({ pokedex: true });
+    this.renderProgressionProfile();
     this.ui.message.showStatus('READY');
   }
 
@@ -312,33 +390,50 @@ export class Game {
     this.ui.setPressed(this.ui.grabButton, false);
     this.ui.setGameOver(true);
     this.ui.message.showStatus('GAME COMPLETE', 1800);
-    this.ui.gameOver.show(this.state);
+    this.ui.gameOver.show(this.state, {
+      canPlay: this.progression.canAfford(PROGRESSION_CONFIG.playCost) || this.geometryLabActive,
+      playCost: PROGRESSION_CONFIG.playCost,
+    });
   }
 
   refresh(options = {}) {
     this.missions.updateProgress();
     this.ui.hud.render(this.state, this.score.trainerLevel(), this.score.experienceToNextLevel());
     this.ui.hud.renderMission(this.state.mission);
-    if (options.pokedex) this.ui.pokedex.render(this.characters, this.state.pokedexCounts, this.state.selectedCharacter);
+    this.ui.newGameButton.disabled = !this.geometryLabActive && !this.progression.canAfford(PROGRESSION_CONFIG.playCost);
+    this.ui.newGameButton.title = this.ui.newGameButton.disabled
+      ? 'NOT ENOUGH COINS · Open Trainer Profile for missions'
+      : `${PROGRESSION_CONFIG.playCost} COINS PER PLAY`;
+    if (options.pokedex) this.ui.pokedex.render(this.characters, this.state.pokedexCounts, this.state.selectedCharacter, this.state.profile.collection);
     if (options.animateCombo) this.ui.hud.animateCombo(this.state.currentCombo);
     if (options.animateScore) this.ui.hud.animateScore();
     this.refreshStartScreen();
+    this.renderProgressionProfile();
   }
 
   refreshStartScreen() {
     if (!this.ui) return;
     this.ui.startScreen.setCurrentMode(this.state.mode);
-    this.ui.startScreen.render({ modeLabel: this.difficulty.current.label, bestScore: this.state.bestScore, level: this.score.trainerLevel() });
+    this.ui.startScreen.render({
+      modeLabel: this.difficulty.current.label,
+      bestScore: this.state.bestScore,
+      level: this.score.trainerLevel(),
+      coins: this.state.profile.coins,
+      playCost: PROGRESSION_CONFIG.playCost,
+    });
   }
 
   update(time) {
-    if (this.state.appState !== AppState.PLAYING || document.hidden) {
+    if (document.hidden) {
       this.state.lastTime = 0;
       return;
     }
     const elapsed = this.state.lastTime ? Math.min(time - this.state.lastTime, 50) : 0;
     this.state.lastTime = time;
     const step = elapsed / 1000;
+    this.progression.update(step);
+    this.ui.hud.renderFever(this.state.fever);
+    if (this.state.appState !== AppState.PLAYING) return;
     if (this.claw.state === ClawState.READY) {
       this.updateTurnTimer(step);
       const direction = Number(this.state.movementInput.right) - Number(this.state.movementInput.left);
@@ -373,6 +468,9 @@ export class Game {
       clawHeadOffsetX: this.claw.headOffsetX,
       turnTimeRemaining: this.state.turnTimeRemaining,
       turnTimeMax: this.state.turnTimeMax,
+      coins: this.state.profile.coins,
+      feverActive: this.state.fever.active,
+      feverRemaining: this.state.fever.remaining,
       autoGrabTriggered: this.state.autoGrabTriggered,
       prizeCount: this.state.prizes.length,
       mission: this.state.mission ? { ...this.state.mission } : null,

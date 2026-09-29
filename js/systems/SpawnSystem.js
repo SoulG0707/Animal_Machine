@@ -1,5 +1,6 @@
 import { FALLBACK_COLORS, GAME_CONFIG, PHYSICS, SPRITE_ASPECT_RATIOS } from '../config/gameConfig.js';
 import { PokemonState } from '../core/GameState.js';
+import { PROGRESSION_CONFIG } from '../config/progressionConfig.js';
 import { Pokemon } from '../entities/Pokemon.js';
 import {
   createPokemonGeometry, ellipseIntersectsRect, getPokemonCollider, shapeRadiusAlong,
@@ -7,13 +8,14 @@ import {
 import { randomBetween, shuffled } from '../utils/random.js';
 
 export class SpawnSystem {
-  constructor(state, characters, machine, chute, prizeBounds, physics) {
+  constructor(state, characters, machine, chute, prizeBounds, physics, { rng = Math.random } = {}) {
     this.state = state;
     this.characters = characters.map((character) => ({ ...character }));
     this.machine = machine;
     this.chute = chute;
     this.prizeBounds = prizeBounds;
     this.physics = physics;
+    this.rng = rng;
     this.imageCache = new Map();
     this.assetFailures = [];
   }
@@ -117,7 +119,7 @@ export class SpawnSystem {
         mass,
         restitution: PHYSICS.restitution + randomBetween(-0.02, 0.025),
         friction: PHYSICS.floorFriction + randomBetween(-0.025, 0.025),
-        shiny: Math.random() < GAME_CONFIG.shinyChance,
+        shiny: this.rng() < PROGRESSION_CONFIG.shinyChance,
       });
       placed.push(prize);
       return prize;

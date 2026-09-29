@@ -171,7 +171,10 @@ body.start-screen-open { overflow: hidden; }
 .start-btn:hover { filter: brightness(1.04); }
 .start-btn:active { transform: translateY(2px); box-shadow: none; }
 .start-btn-primary { border: 0; color: var(--surface); background: var(--ink); box-shadow: 0 4px 0 #17283a; }
-.start-btn-primary span { color: var(--yellow); }
+.start-btn-primary .start-button-label { color: var(--surface); }
+.start-btn-primary > span:last-child { color: var(--yellow); }
+.start-play-cost { color: var(--yellow); font: 500 8px var(--font-game); letter-spacing: .04em; }
+.start-btn:disabled, .reset-btn:disabled, .play-again-btn:disabled { opacity: .48; cursor: not-allowed; filter: grayscale(.18); }
 .start-btn-mode { border: 0; color: var(--ink); background: var(--yellow); box-shadow: 0 4px 0 #ca9f25; }
 .start-btn-mode span { padding: 3px 6px; border: 1px solid rgba(36,51,70,.2); border-radius: 999px; font-size: 8px; }
 .start-btn-reset { min-height: 39px; border: 1px solid rgba(189,49,63,.34); color: var(--coral-dark); background: rgba(255,252,243,.68); }

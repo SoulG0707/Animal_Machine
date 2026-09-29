@@ -37,32 +37,35 @@ export class PokedexUI {
     });
   }
 
-  render(characters, counts, selectedCharacter) {
+  render(characters, counts, selectedCharacter, collection = {}) {
     let caughtSpecies = 0;
     characters.forEach((character) => {
       const count = counts[character.name] || 0;
+      const entry = collection[character.name] || { shinyCaughtCount: 0 };
       const card = this.cards.get(character.name);
       if (count > 0) caughtSpecies += 1;
       if (!card) return;
       const locked = count === 0;
       card.button.classList.toggle('is-locked', locked);
-      card.button.title = locked ? 'LOCKED · Gắp để mở khóa Pokémon' : `${character.name} · ${character.rarity.toUpperCase()} · ${formatPoints(character.score)} điểm · ${count} lần bắt`;
+      card.button.title = locked ? 'LOCKED · Gắp để mở khóa Pokémon' : `${character.name} · ${character.rarity.toUpperCase()} · ${count} caught · ${entry.shinyCaughtCount || 0} shiny`;
       card.button.setAttribute('aria-label', locked ? 'Pokémon chưa mở khóa. Gắp Pokémon để mở khóa.' : `${character.name}, ${character.rarity}, ${formatPoints(character.score)} điểm, đã bắt ${count} lần.`);
       card.image.classList.toggle('is-locked', locked);
-      card.countText.textContent = locked ? 'LOCKED' : `×${count}`;
+      card.countText.textContent = locked ? 'LOCKED' : `×${count}${entry.shinyCaughtCount ? ` · ✦${entry.shinyCaughtCount}` : ''}`;
       card.newBadge.hidden = !character.newThisGame;
     });
     this.count.textContent = `${caughtSpecies} / ${characters.length} CAUGHT`;
-    this.renderDetail(selectedCharacter, counts);
+    this.renderDetail(selectedCharacter, counts, collection);
   }
 
-  renderDetail(character, counts) {
+  renderDetail(character, counts, collection = {}) {
     if (!character) return;
     const detail = document.createElement('span');
     const count = counts[character.name] || 0;
+    const entry = collection[character.name] || { shinyCaughtCount: 0 };
     if (count === 0) detail.textContent = 'LOCKED · Gắp Pokémon để mở khóa';
     else {
-      detail.textContent = `${character.name} · ${character.rarity.toUpperCase()} · ${formatPoints(character.score)} điểm · Caught ${count} ${count === 1 ? 'time' : 'times'}`;
+      const normalCount = Math.max(0, count - entry.shinyCaughtCount);
+      detail.textContent = `${character.name} · ${character.rarity.toUpperCase()} · Normal ${normalCount} · Shiny ${entry.shinyCaughtCount || 0}`;
       detail.className = character.score < 0 ? 'is-penalty' : '';
     }
     this.detail.replaceChildren(detail);

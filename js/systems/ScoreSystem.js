@@ -2,11 +2,12 @@ import { GAME_CONFIG } from '../config/gameConfig.js';
 import { formatPoints } from '../utils/math.js';
 
 export class ScoreSystem {
-  constructor(state, storage, combo, missions) {
+  constructor(state, storage, combo, missions, eventBus = null) {
     this.state = state;
     this.storage = storage;
     this.combo = combo;
     this.missions = missions;
+    this.eventBus = eventBus;
   }
 
   trainerLevel(experience = this.state.trainerXp) {
@@ -24,15 +25,9 @@ export class ScoreSystem {
     this.state.caughtThisGame += 1;
     this.state.sessionCaughtSpecies.add(character.name);
 
-    const previousCount = this.state.pokedexCounts[character.name] || 0;
-    this.state.pokedexCounts[character.name] = previousCount + 1;
-    if (previousCount === 0) {
-      character.newThisGame = true;
-      this.state.newUnlocksThisGame.push(character.name);
-    }
-    this.storage.saveCollection(this.state.pokedexCounts);
-
-    const catchPoints = grab.basePoints * (grab.basePoints > 0 ? grab.comboMultiplier : 1) * (prize.shiny ? 2 : 1);
+    const catchPoints = Math.round(
+      grab.basePoints * (grab.basePoints > 0 ? grab.comboMultiplier : 1) * (prize.shiny ? 2 : 1),
+    );
     const perfectBonus = grab.perfect ? 20 : 0;
     const pointsEarned = catchPoints + perfectBonus;
     this.state.score += pointsEarned;
@@ -47,6 +42,11 @@ export class ScoreSystem {
       this.storage.saveBestScore(this.state.bestScore);
     }
     const missionCompleted = this.missions.checkCompletion();
+    const catchPayload = { pokemon: prize, grab, pointsEarned, missionCompleted };
+    this.eventBus?.emit('pokemon:caught', catchPayload);
+    if (grab.perfect) this.eventBus?.emit('pokemon:perfect', catchPayload);
+    if (prize.shiny || prize.variant === 'shiny') this.eventBus?.emit('pokemon:shinyCaught', catchPayload);
+    this.eventBus?.emit('player:progressChanged', { kind: 'score', total: this.state.score });
     if (missionCompleted) return '+1 TURN';
     if (leveledUp) return `LEVEL UP! LV ${this.trainerLevel()}`;
     if (grab.perfect) return 'PERFECT +20';
