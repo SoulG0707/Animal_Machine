@@ -3,6 +3,7 @@ export class StartScreen {
     this.screen = root.querySelector('#start-screen');
     this.appShell = root.querySelector('.app-shell');
     this.startButton = root.querySelector('#start-game-btn');
+    this.startButtonLabel = this.startButton.textContent;
     this.openModeButton = root.querySelector('#open-mode-btn');
     this.resetButton = root.querySelector('#reset-data-btn');
     this.modeBadge = root.querySelector('#start-mode-badge');
@@ -34,6 +35,12 @@ export class StartScreen {
     this.currentMode.textContent = modeLabel;
     this.best.textContent = String(bestScore).padStart(3, '0');
     this.level.textContent = String(level);
+  }
+
+  setLoading(loading) {
+    this.startButton.disabled = loading;
+    this.startButton.setAttribute('aria-busy', String(loading));
+    this.startButton.textContent = loading ? 'ĐANG TẢI POKÉMON…' : this.startButtonLabel;
   }
 
   openMode(currentMode) {

@@ -48,6 +48,8 @@ await new Promise((resolve) => setTimeout(resolve, 900));
 
 const result = await evaluate(`(async () => {
   const { game } = await import('/js/main.js');
+  const { getPokemonCollider, getPokemonGrabZone, shapeIntersectsOrientedRect } =
+    await import('/js/utils/pokemonGeometry.js');
   document.querySelector('#start-game-btn').click();
   game.loop.stop();
 
@@ -102,7 +104,7 @@ const result = await evaluate(`(async () => {
 
   activateOnly(top, middle, bottom);
   zone = prepareClaw();
-  placeCenter(top, zone.x + 5, zone.y - 24);
+  placeCenter(top, zone.x + 5, zone.y - 18);
   placeCenter(middle, zone.x - 3, zone.y - 4);
   placeCenter(bottom, zone.x, zone.y + 17);
   contact(top, 'descending');
@@ -135,7 +137,17 @@ const result = await evaluate(`(async () => {
       < game.claw.contactHistory.get(bottom)?.firstFrame,
   };
 
-  return { twoStack, threeStack, exposedLower };
+  activateOnly(top);
+  zone = prepareClaw();
+  placeCenter(top, zone.x, zone.y + 42);
+  contact(top, 'descending');
+  const colliderOnly = {
+    bodyIntersectsClaw: shapeIntersectsOrientedRect(getPokemonCollider(top), zone),
+    grabZoneIntersectsClaw: shapeIntersectsOrientedRect(getPokemonGrabZone(top), zone),
+    selected: game.grab.selectPrizeFromClosedClaw()?.prize.name || null,
+  };
+
+  return { twoStack, threeStack, exposedLower, colliderOnly };
 })()`);
 
 const valid = result.twoStack.selected === 'Pikachu'
@@ -148,6 +160,9 @@ const valid = result.twoStack.selected === 'Pikachu'
   && result.exposedLower.selected === 'Bulbasaur'
   && result.exposedLower.blockers.length === 0
   && result.exposedLower.topStillFirstContact
+  && result.colliderOnly.bodyIntersectsClaw
+  && !result.colliderOnly.grabZoneIntersectsClaw
+  && result.colliderOnly.selected === null
   && errors.length === 0;
 
 console.log(JSON.stringify({ result, errors, valid }, null, 2));

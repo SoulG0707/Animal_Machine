@@ -78,13 +78,15 @@ const result = await evaluate(`(async () => {
   const penetration = 8;
   placeCenter(
     light,
-    openColliders.leftProng.bx - (light.bodyRadius + openColliders.leftProng.radius - penetration),
-    openColliders.leftProng.by,
+    openColliders.leftProng.bx - (light.geometry.collider.radiusX + openColliders.leftProng.radius - penetration)
+      - light.geometry.collider.offsetX,
+    openColliders.leftProng.by - light.geometry.collider.offsetY,
   );
   placeCenter(
     heavy,
-    openColliders.rightProng.bx + (heavy.bodyRadius + openColliders.rightProng.radius - penetration),
-    openColliders.rightProng.by,
+    openColliders.rightProng.bx + (heavy.geometry.collider.radiusX + openColliders.rightProng.radius - penetration)
+      - heavy.geometry.collider.offsetX,
+    openColliders.rightProng.by - heavy.geometry.collider.offsetY,
   );
   const beforeSeparation = { lightX: light.centerX, heavyX: heavy.centerX };
   const descentContacts = game.physics.resolveClawCollisions(game.claw, {

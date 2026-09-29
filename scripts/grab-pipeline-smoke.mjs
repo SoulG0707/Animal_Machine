@@ -211,6 +211,7 @@ const result = await evaluate(`(async () => {
     run({ seed: 2005, species: 'Pikachu', isolated: true, aimOffset: -12 }),
     run({ seed: 2006, species: 'Pikachu', isolated: true, aimOffset: 12 }),
     run({ seed: 2007, species: 'Pikachu', isolated: true, miss: true }),
+    run({ seed: 2008, species: 'Charmander', isolated: true }),
   ];
 })()`);
 

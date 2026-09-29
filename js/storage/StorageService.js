@@ -8,11 +8,18 @@ const KEYS = Object.freeze({
 });
 
 export class StorageService {
+  constructor({ temporary = false } = {}) {
+    this.temporary = temporary;
+    this.memory = new Map();
+  }
+
   read(key) {
+    if (this.temporary) return this.memory.get(key) ?? null;
     try { return localStorage.getItem(key); } catch { return null; }
   }
 
   write(key, value) {
+    if (this.temporary) { this.memory.set(key, value); return; }
     try { localStorage.setItem(key, value); } catch { /* Storage may be disabled. */ }
   }
 
@@ -57,6 +64,7 @@ export class StorageService {
   saveCollection(value) { this.write(KEYS.collection, JSON.stringify(value)); }
 
   clearAll() {
+    if (this.temporary) { this.memory.clear(); return; }
     try { localStorage.clear(); } catch { /* Storage may be disabled. */ }
   }
 }

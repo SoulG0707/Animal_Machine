@@ -200,21 +200,22 @@ const desktop = await evaluate(`(async () => {
   game.claw.state = 'ready';
   game.claw.swingAngle = 6 * Math.PI / 180;
   game.claw.swingVelocity = 0.24;
-  const centerOfMassOffset = target.getCenterOfMassOffset(0);
   const intendedGrip = game.grab.getGripPoint();
-  target.x = intendedGrip.x - target.width / 2 - centerOfMassOffset.x;
-  target.y = intendedGrip.y - target.height / 2 - centerOfMassOffset.y;
+  target.x = intendedGrip.x - target.width / 2 - target.geometry.grabZone.offsetX;
+  target.y = intendedGrip.y - target.height / 2 - target.geometry.grabZone.offsetY;
   game.physics.updateGeometry(target);
   const headBeforeGrab = game.claw.headX;
   const evaluation = game.grab.evaluateGrab(target);
+  const { getPokemonGrabZone } = await import('/js/utils/pokemonGeometry.js');
+  const targetZone = getPokemonGrabZone(target);
   const grabStarted = game.grab.attempt();
   const swingGrab = {
     grabStarted,
     perfect: evaluation.perfect,
     headBeforeGrab,
     headAfterGrab: game.claw.headX,
-    headDistance: Math.abs(target.worldCenterOfMassX - headBeforeGrab),
-    carriageDistance: Math.abs(target.worldCenterOfMassX - game.claw.x),
+    headDistance: Math.abs(targetZone.x - headBeforeGrab),
+    carriageDistance: Math.abs(targetZone.x - game.claw.x),
   };
 
   const runAttachmentCase = (pickPrize, angleDegrees) => {
@@ -275,6 +276,10 @@ const desktop = await evaluate(`(async () => {
       height: prize.height,
       angleDegrees,
       anchor: { x: prize.grabAnchorX, y: prize.grabAnchorY },
+      expectedAnchor: {
+        x: 0.5 + prize.geometry.carryAnchor.x / prize.width,
+        y: 0.5 + prize.geometry.carryAnchor.y / prize.height,
+      },
       initialAnchorError,
       movedAnchorError,
       topIsBelowPivot,
@@ -513,8 +518,8 @@ const checks = {
     && attachment.rotationFollowsSwing
     && attachment.identityPreserved
     && attachment.swingFollowed
-    && attachment.anchor.x === 0.5
-    && attachment.anchor.y === 0.22),
+    && Math.abs(attachment.anchor.x - attachment.expectedAnchor.x) < 0.000001
+    && Math.abs(attachment.anchor.y - attachment.expectedAnchor.y) < 0.000001),
   mobileRight: mobile.coast >= 0 && mobile.coast <= 3
     && mobile.rightTravel > 30
     && Math.abs(mobile.stoppedVelocity) < 0.01

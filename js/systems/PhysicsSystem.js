@@ -1,6 +1,9 @@
 import { ANIMATION, CLAW_COLLISION, PHYSICS } from '../config/gameConfig.js';
 import { PokemonState } from '../core/GameState.js';
 import { clamp } from '../utils/math.js';
+import {
+  ellipseIntersectsCircle, ellipseIntersectsRect, getPokemonCollider, getShapeBounds, shapeRadiusAlong,
+} from '../utils/pokemonGeometry.js';
 
 function closestPointOnSegment(pointX, pointY, startX, startY, endX, endY, output) {
   const segmentX = endX - startX;
@@ -37,12 +40,7 @@ export class PhysicsSystem {
   }
 
   getPrizeBodyBounds(prize) {
-    return {
-      left: prize.centerX - prize.bodyRadius,
-      right: prize.centerX + prize.bodyRadius,
-      top: prize.centerY - prize.bodyRadius,
-      bottom: prize.centerY + prize.bodyRadius,
-    };
+    return getShapeBounds(getPokemonCollider(prize));
   }
 
   isPrizeOccludingApproach(blocker, target, approachOrigin) {
@@ -51,25 +49,32 @@ export class PhysicsSystem {
     const targetBounds = this.getPrizeBodyBounds(target);
     const horizontalOverlap = Math.min(blockerBounds.right, targetBounds.right)
       - Math.max(blockerBounds.left, targetBounds.left);
-    const minimumOverlap = Math.max(2, Math.min(blocker.bodyRadius, target.bodyRadius) * 0.12);
+    const minimumOverlap = Math.max(2, Math.min(
+      blockerBounds.right - blockerBounds.left,
+      targetBounds.right - targetBounds.left,
+    ) * 0.06);
     if (horizontalOverlap <= minimumOverlap) return false;
 
     const approachX = target.worldCenterOfMassX - approachOrigin.x;
     const approachY = target.worldCenterOfMassY - approachOrigin.y;
     const approachLengthSquared = approachX * approachX + approachY * approachY;
     if (approachLengthSquared < 1) return false;
-    const blockerX = blocker.worldCenterOfMassX - approachOrigin.x;
-    const blockerY = blocker.worldCenterOfMassY - approachOrigin.y;
+    const blockerShape = getPokemonCollider(blocker);
+    const blockerX = blockerShape.x - approachOrigin.x;
+    const blockerY = blockerShape.y - approachOrigin.y;
     const progress = (blockerX * approachX + blockerY * approachY) / approachLengthSquared;
     if (progress <= 0.02 || progress >= 0.98) return false;
 
     const closestX = approachOrigin.x + approachX * progress;
     const closestY = approachOrigin.y + approachY * progress;
     const distanceFromApproach = Math.hypot(
-      blocker.worldCenterOfMassX - closestX,
-      blocker.worldCenterOfMassY - closestY,
+      blockerShape.x - closestX,
+      blockerShape.y - closestY,
     );
-    const occlusionRadius = blocker.bodyRadius + Math.min(4, target.bodyRadius * 0.15);
+    const directionX = distanceFromApproach > 0 ? (closestX - blockerShape.x) / distanceFromApproach : 0;
+    const directionY = distanceFromApproach > 0 ? (closestY - blockerShape.y) / distanceFromApproach : 1;
+    const occlusionRadius = shapeRadiusAlong(blockerShape, directionX, directionY)
+      + Math.min(4, (targetBounds.right - targetBounds.left) * 0.075);
     return distanceFromApproach < occlusionRadius;
   }
 
@@ -79,14 +84,18 @@ export class PhysicsSystem {
 
   getPrizeExposure(target) {
     const targetBounds = this.getPrizeBodyBounds(target);
+    const targetBodyY = getPokemonCollider(target).y;
     const targetWidth = Math.max(1, targetBounds.right - targetBounds.left);
     let maximumCoverage = 0;
     for (const prize of this.state.prizes) {
-      if (prize === target || !this.isPhysicsPrize(prize) || prize.centerY >= target.centerY) continue;
+      if (prize === target || !this.isPhysicsPrize(prize)
+        || getPokemonCollider(prize).y >= targetBodyY) continue;
       const bounds = this.getPrizeBodyBounds(prize);
       const overlap = Math.max(0, Math.min(bounds.right, targetBounds.right) - Math.max(bounds.left, targetBounds.left));
       const verticalGap = Math.max(0, targetBounds.top - bounds.bottom);
-      const proximity = clamp(1 - verticalGap / Math.max(1, target.bodyRadius + prize.bodyRadius), 0, 1);
+      const proximity = clamp(1 - verticalGap / Math.max(1,
+        (targetBounds.bottom - targetBounds.top + bounds.bottom - bounds.top) / 2,
+      ), 0, 1);
       maximumCoverage = Math.max(maximumCoverage, overlap / targetWidth * proximity);
     }
     return clamp(1 - maximumCoverage, 0, 1);
@@ -119,28 +128,29 @@ export class PhysicsSystem {
   }
 
   resolveClawContact(prize, collider, motion) {
+    const body = getPokemonCollider(prize);
     const closest = collider.type === 'circle'
       ? collider
       : closestPointOnSegment(
-        prize.centerX, prize.centerY,
+        body.x, body.y,
         collider.ax, collider.ay, collider.bx, collider.by,
         this.clawContactPoint,
       );
-    let deltaX = prize.centerX - closest.x;
-    let deltaY = prize.centerY - closest.y;
+    let deltaX = body.x - closest.x;
+    let deltaY = body.y - closest.y;
     let distance = Math.hypot(deltaX, deltaY);
-    const minimumDistance = prize.bodyRadius + collider.radius;
-    if (distance >= minimumDistance) return null;
-
     if (distance < 0.001) {
-      if (collider.id === 'left-prong') deltaX = prize.centerX >= motion.headX ? 1 : -1;
-      else if (collider.id === 'right-prong') deltaX = prize.centerX <= motion.headX ? -1 : 1;
+      if (collider.id === 'left-prong') deltaX = body.x >= motion.headX ? 1 : -1;
+      else if (collider.id === 'right-prong') deltaX = body.x <= motion.headX ? -1 : 1;
       else deltaY = 1;
       distance = 1;
     }
     const normalX = deltaX / distance;
     const normalY = deltaY / distance;
-    const penetration = minimumDistance - distance;
+    const minimumDistance = shapeRadiusAlong(body, normalX, normalY) + collider.radius;
+    if (distance >= minimumDistance
+      && !ellipseIntersectsCircle(body, closest.x, closest.y, collider.radius)) return null;
+    const penetration = Math.max(0.25, minimumDistance - distance);
     const weightResistance = 1 / Math.sqrt(prize.weight);
     const correction = Math.min(
       penetration * 0.48,
@@ -177,8 +187,8 @@ export class PhysicsSystem {
       -CLAW_COLLISION.maxPushVelocity,
       CLAW_COLLISION.maxPushVelocity * 1.35,
     );
-    const leverX = closest.x - prize.centerX;
-    const leverY = closest.y - prize.centerY;
+    const leverX = closest.x - prize.worldCenterOfMassX;
+    const leverY = closest.y - prize.worldCenterOfMassY;
     const tangentX = -normalY;
     const tangentY = normalX;
     const tangentialSpeed = kinematicX * tangentX + motion.velocityY * tangentY;
@@ -227,29 +237,30 @@ export class PhysicsSystem {
 
   resolveWorldBounds(prize) {
     const minimumX = this.prizeBounds.left;
-    const maximumX = this.prizeBounds.right - prize.width;
+    const maximumX = this.prizeBounds.right;
+    const bounds = this.getPrizeBodyBounds(prize);
     let collided = false;
-    if (prize.x < minimumX) {
-      prize.x = minimumX;
+    if (bounds.left < minimumX) {
+      prize.x += minimumX - bounds.left;
       prize.velocityX = Math.abs(prize.velocityX) * PHYSICS.wallRestitution;
       prize.angularVelocity += Math.min(0.28, Math.abs(prize.velocityY) * 0.0007);
       collided = true;
-    } else if (prize.x > maximumX) {
-      prize.x = maximumX;
+    } else if (bounds.right > maximumX) {
+      prize.x -= bounds.right - maximumX;
       prize.velocityX = -Math.abs(prize.velocityX) * PHYSICS.wallRestitution;
       prize.angularVelocity -= Math.min(0.28, Math.abs(prize.velocityY) * 0.0007);
       collided = true;
     }
-    if (prize.y + prize.height >= this.machine.floorY) {
-      prize.y = this.machine.floorY - prize.height;
+    if (bounds.bottom >= this.machine.floorY) {
+      prize.y -= bounds.bottom - this.machine.floorY;
       prize.velocityY = prize.velocityY > 24 ? -prize.velocityY * prize.restitution : 0;
       prize.velocityX *= prize.friction;
       prize.angularVelocity *= 0.72;
       prize.touchingSurface = true;
       collided = true;
     }
-    if (prize.y < -prize.height * 1.5) {
-      prize.y = -prize.height * 1.5;
+    if (bounds.top < -prize.height * 1.5) {
+      prize.y += -prize.height * 1.5 - bounds.top;
       prize.velocityY = Math.max(0, prize.velocityY);
     }
     this.updateGeometry(prize);
@@ -257,25 +268,31 @@ export class PhysicsSystem {
   }
 
   resolveStaticRectCollision(prize, rectangle) {
-    const closestX = Math.max(rectangle.x, Math.min(prize.centerX, rectangle.x + rectangle.width));
-    const closestY = Math.max(rectangle.y, Math.min(prize.centerY, rectangle.y + rectangle.height));
-    let deltaX = prize.centerX - closestX;
-    let deltaY = prize.centerY - closestY;
+    const body = getPokemonCollider(prize);
+    const closestX = Math.max(rectangle.x, Math.min(body.x, rectangle.x + rectangle.width));
+    const closestY = Math.max(rectangle.y, Math.min(body.y, rectangle.y + rectangle.height));
+    let deltaX = body.x - closestX;
+    let deltaY = body.y - closestY;
     let distance = Math.hypot(deltaX, deltaY);
-    let penetration = prize.bodyRadius - distance;
+    let penetration;
     if (distance === 0) {
       const distances = [
-        { value: prize.centerX - rectangle.x, normalX: -1, normalY: 0 },
-        { value: rectangle.x + rectangle.width - prize.centerX, normalX: 1, normalY: 0 },
-        { value: prize.centerY - rectangle.y, normalX: 0, normalY: -1 },
-        { value: rectangle.y + rectangle.height - prize.centerY, normalX: 0, normalY: 1 },
+        { value: body.x - rectangle.x, normalX: -1, normalY: 0 },
+        { value: rectangle.x + rectangle.width - body.x, normalX: 1, normalY: 0 },
+        { value: body.y - rectangle.y, normalX: 0, normalY: -1 },
+        { value: rectangle.y + rectangle.height - body.y, normalX: 0, normalY: 1 },
       ].sort((first, second) => first.value - second.value);
       deltaX = distances[0].normalX;
       deltaY = distances[0].normalY;
       distance = 1;
-      penetration = prize.bodyRadius + distances[0].value;
+      penetration = shapeRadiusAlong(body, deltaX, deltaY) + distances[0].value;
+    } else {
+      penetration = shapeRadiusAlong(body, deltaX / distance, deltaY / distance) - distance;
     }
-    if (penetration <= 0) return false;
+    if (penetration <= 0) {
+      if (!ellipseIntersectsRect(body, rectangle)) return false;
+      penetration = 0.25;
+    }
     const normalX = deltaX / distance;
     const normalY = deltaY / distance;
     prize.x += normalX * penetration;
@@ -306,14 +323,17 @@ export class PhysicsSystem {
   }
 
   resolvePrizeCollision(first, second) {
-    const deltaX = second.centerX - first.centerX;
-    const deltaY = second.centerY - first.centerY;
-    const minimumDistance = first.bodyRadius + second.bodyRadius;
+    const firstBody = getPokemonCollider(first);
+    const secondBody = getPokemonCollider(second);
+    const deltaX = secondBody.x - firstBody.x;
+    const deltaY = secondBody.y - firstBody.y;
     const distanceSquared = deltaX * deltaX + deltaY * deltaY;
-    if (distanceSquared >= minimumDistance * minimumDistance) return false;
     const distance = Math.sqrt(distanceSquared) || 0.001;
-    const normalX = distance > 0.001 ? deltaX / distance : (first.centerX <= second.centerX ? 1 : -1);
+    const normalX = distance > 0.001 ? deltaX / distance : (firstBody.x <= secondBody.x ? 1 : -1);
     const normalY = distance > 0.001 ? deltaY / distance : 0;
+    const minimumDistance = shapeRadiusAlong(firstBody, normalX, normalY)
+      + shapeRadiusAlong(secondBody, -normalX, -normalY);
+    if (distanceSquared >= minimumDistance * minimumDistance) return false;
     const overlap = minimumDistance - distance;
     const firstWeight = first.isSleeping ? 0 : first.inverseMass;
     const secondWeight = second.isSleeping ? 0 : second.inverseMass;

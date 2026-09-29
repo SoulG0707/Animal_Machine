@@ -44,6 +44,7 @@ await new Promise((resolve) => setTimeout(resolve, 900));
 const result = await evaluate(`(async () => {
   const { game } = await import('/js/main.js');
   const { DIFFICULTY_SETTINGS } = await import('/js/config/difficultyConfig.js');
+  const { getPokemonGrabZone } = await import('/js/utils/pokemonGeometry.js');
   document.querySelector('#start-game-btn').click();
   await new Promise((resolve) => setTimeout(resolve, 100));
 
@@ -60,11 +61,12 @@ const result = await evaluate(`(async () => {
     prize.rotation = 0;
     game.physics.updateGeometry(prize);
     game.claw.swingAngle = 0;
-    game.claw.x = prize.worldCenterOfMassX;
+    const zone = getPokemonGrabZone(prize);
+    game.claw.x = zone.x;
     game.claw.y = game.claw.homeY;
     const centeredGripPoint = game.grab.getGripPoint();
-    game.claw.x += prize.worldCenterOfMassX - centeredGripPoint.x;
-    game.claw.y += prize.worldCenterOfMassY - centeredGripPoint.y;
+    game.claw.x += zone.x - centeredGripPoint.x;
+    game.claw.y += zone.y - centeredGripPoint.y;
     const centered = game.grab.evaluateGrab(prize);
     game.claw.x += centered.horizontalReach * offsetRatio;
     const offset = game.grab.evaluateGrab(prize);

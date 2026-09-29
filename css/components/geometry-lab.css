@@ -1,0 +1,93 @@
+body.geometry-lab-active {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(400px, 620px);
+  gap: 20px;
+  max-width: 1680px;
+  min-height: 100dvh;
+  margin: 0 auto;
+  padding: 18px;
+}
+
+.geometry-lab-active .start-screen,
+.geometry-lab-active .topbar,
+.geometry-lab-active .footer-note,
+.geometry-lab-active .intro-panel,
+.geometry-lab-active .score-panel { display: none; }
+
+.geometry-lab-active .app-shell {
+  display: block;
+  width: 100%;
+  height: auto;
+  padding: 0;
+}
+
+.geometry-lab-active .game-layout { display: block; padding: 0; }
+.geometry-lab-active .machine-wrap { width: 100%; max-width: none; margin: 0; }
+
+.geometry-lab {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid #b7c9c1;
+  border-radius: 16px;
+  background: #f7f5eb;
+  color: #243346;
+  box-shadow: 0 12px 34px rgba(36, 51, 70, .1);
+}
+
+.geometry-lab h1 { margin: 0 0 6px; font-size: clamp(25px, 3vw, 38px); }
+.geometry-lab header p:last-child { margin: 0 0 14px; line-height: 1.4; }
+.geometry-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-bottom: 14px; font: 12px 'DM Mono', monospace; }
+.geometry-legend span::before { display: inline-block; width: 10px; height: 10px; margin-right: 5px; border-radius: 50%; content: ''; background: currentColor; }
+.geometry-visual-modes { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; font: 11px 'DM Mono', monospace; }
+.geometry-visual-modes span { margin-right: 6px; color: #678098; }
+.geometry-visual-modes button { padding: 7px 10px; border: 1px solid #aebdb8; border-radius: 6px; background: #fff9e5; color: #243346; cursor: pointer; font: inherit; }
+.geometry-visual-modes button[aria-pressed="true"] { border-color: #e6464d; background: #ffdb4d; }
+.geometry-lab[data-review-mode="clean"] .geometry-card span { display: none; }
+.geometry-lab:not([data-review-mode="geometry"]) .geometry-legend { display: none; }
+.geometry-red { color: #e43238; }
+.geometry-green { color: #188841; }
+.geometry-yellow { color: #a47800; }
+.geometry-blue { color: #167bc8; }
+.geometry-white { color: #88939b; }
+.geometry-purple { color: #ad3bba; }
+
+.geometry-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.geometry-card {
+  display: grid;
+  min-width: 0;
+  padding: 4px;
+  justify-items: center;
+  border: 2px solid #c5d0c9;
+  border-radius: 8px;
+  background: #e6eee6;
+  color: #243346;
+  cursor: pointer;
+  font: 11px 'DM Mono', monospace;
+}
+.geometry-card.selected { border-color: #e6464d; background: #fff5dc; }
+.geometry-card:hover { border-color: #39956d; }
+.geometry-card canvas { display: block; width: 100%; max-width: 150px; aspect-ratio: 150 / 142; }
+.geometry-card span { padding: 3px 0 2px; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+.geometry-toolbar { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 12px; }
+.geometry-toolbar button {
+  min-height: 36px;
+  padding: 6px 10px;
+  border: 1px solid #243346;
+  border-radius: 6px;
+  background: #fff9e5;
+  color: #243346;
+  cursor: pointer;
+  font: 11px 'DM Mono', monospace;
+}
+.geometry-toolbar button:hover { background: #ffdb4d; }
+.geometry-status { display: block; margin-top: 12px; font: 12px/1.5 'DM Mono', monospace; }
+
+@media (max-width: 1150px) {
+  body.geometry-lab-active { display: flex; flex-direction: column; padding: 12px; }
+  .geometry-lab-active .machine-wrap { width: min(100%, 620px); margin: 0 auto; }
+}
+@media (max-width: 640px) {
+  .geometry-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .geometry-lab { padding: 10px; }
+  .geometry-card { font-size: 10px; }
+}

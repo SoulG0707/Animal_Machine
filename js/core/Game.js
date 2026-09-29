@@ -21,7 +21,8 @@ export class Game {
   init() {
     if (this.initialized) return;
     this.initialized = true;
-    this.storage = new StorageService();
+    this.geometryLabActive = new URLSearchParams(location.search).get('geometryLab') === '1';
+    this.storage = new StorageService({ temporary: this.geometryLabActive });
     this.state = new GameState(this.storage.loadProfile(POKEMON_DATA));
     this.chute = new PrizeChute(MACHINE);
     this.claw = new Claw(this.chute.centerX);
@@ -42,7 +43,8 @@ export class Game {
     this.characters = this.spawn.loadImages();
     this.state.selectedCharacter = this.characters[0];
     this.missions.characters = this.characters;
-    this.renderer = new RenderSystem(this.ui.canvas, this.state, MACHINE, this.chute, this.claw, this.spawn);
+    this.renderer = new RenderSystem(this.ui.canvas, this.state, MACHINE, this.chute, this.claw);
+    this.renderer.debugAssetPlaceholders = this.geometryLabActive;
     this.grab = new GrabSystem({
       state: this.state,
       claw: this.claw,
@@ -69,6 +71,18 @@ export class Game {
     this.ui.setBackVisible(false);
     this.refreshStartScreen();
     this.loop = new GameLoop((time) => this.update(time));
+    this.assetsReady = false;
+    this.ui.startScreen.setLoading(true);
+    this.assetsPromise = this.spawn.assetsReady.then(() => {
+      this.assetsReady = true;
+      // Recreate the initial pile with each image's intrinsic aspect ratio now
+      // that the source assets are available. Gameplay remains disabled until
+      // this preload pass settles, including individual asset failures.
+      this.resetCurrentRun();
+      this.refreshStartScreen();
+      this.ui.startScreen.setLoading(false);
+      return this.characters;
+    });
   }
 
   bindUI() {
@@ -171,6 +185,7 @@ export class Game {
   }
 
   updateTurnTimer(step) {
+    if (this.geometryLabActive) return;
     if (document.hidden || this.claw.state !== ClawState.READY || this.state.autoGrabTriggered) return;
     this.state.turnTimeRemaining = Math.max(0, this.state.turnTimeRemaining - step);
     this.ui.hud.renderTimer(this.state.turnTimeRemaining);
@@ -181,12 +196,14 @@ export class Game {
   }
 
   startGame() {
+    if (!this.assetsReady) return false;
     this.state.appState = AppState.PLAYING;
     this.ui.startScreen.hide();
     this.ui.setBackVisible(true);
     this.resetCurrentRun();
     this.resumeGame();
     this.ui.grabButton.focus({ preventScroll: true });
+    return true;
   }
 
   enterGame() { this.startGame(); }

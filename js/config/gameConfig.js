@@ -124,6 +124,7 @@ export const GAME_CONFIG = Object.freeze({
   shinyChance: 0.018,
   experiencePerLevel: 250,
   initialTurns: 5,
+  debugPokemonPhysics: false,
 });
 
 export const RARITY_COLORS = Object.freeze({
@@ -139,11 +140,24 @@ export const FALLBACK_COLORS = Object.freeze([
 ]);
 
 export const SPRITE_ASPECT_RATIOS = Object.freeze({
-  Bulbasaur: 730.616 / 729.493,
-  Meowth: 1097.67 / 1260.96,
-  Mewtwo: 1019.249 / 1419.975,
-  Ninetales: 1086.06 / 1022.313,
-  Pikachu: 723.9 / 940,
+  // Frozen presentation frames preserve the established in-game body scale.
+  // These values are config, not read from loaded image dimensions, so an
+  // asset replacement cannot change collider/grab geometry.
+  Pikachu: 116 / 150,
+  Bulbasaur: 1,
+  Charmander: 1,
+  Vulpix: 1,
+  Mewtwo: 108 / 150,
+  Chikorita: 1,
+  Cyndaquil: 1,
+  Poliwag: 1,
+  Psyduck: 1,
+  Wartortle: 1,
+  Arbok: 1,
+  Clefairy: 1,
+  Kingler: 1,
+  Meowth: 131 / 150,
+  Ninetales: 159 / 150,
 });
 
 export const ENCOURAGING_MESSAGES = Object.freeze([

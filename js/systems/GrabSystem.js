@@ -6,6 +6,9 @@ import { TEASING_MESSAGE_CHANCE } from '../config/difficultyConfig.js';
 import { AppState, ClawState, PokemonState } from '../core/GameState.js';
 import { clamp, easeInOut, moveTowards } from '../utils/math.js';
 import { randomBetween } from '../utils/random.js';
+import {
+  getPokemonCollider, getPokemonGrabZone, shapeIntersectsOrientedRect, shapeProjectionRadius,
+} from '../utils/pokemonGeometry.js';
 
 export class GrabSystem {
   constructor({ state, claw, chute, physics, difficulty, combo, score, ui, renderer, refresh, finishGame, onTurnReady }) {
@@ -35,10 +38,11 @@ export class GrabSystem {
 
   evaluateGrab(prize) {
     const gripPoint = this.getGripPoint();
-    const grabOffsetX = gripPoint.x - prize.worldCenterOfMassX;
-    const grabOffsetY = gripPoint.y - prize.worldCenterOfMassY;
-    const horizontalReach = prize.bodyRadius + GRAB_PHYSICS.horizontalReachPadding;
-    const verticalReach = prize.bodyRadius + GRAB_PHYSICS.verticalReachPadding;
+    const target = getPokemonGrabZone(prize);
+    const grabOffsetX = gripPoint.x - target.x;
+    const grabOffsetY = gripPoint.y - target.y;
+    const horizontalReach = shapeProjectionRadius(target, 1, 0) + GRAB_PHYSICS.horizontalReachPadding;
+    const verticalReach = shapeProjectionRadius(target, 0, 1) + GRAB_PHYSICS.verticalReachPadding;
     const normalizedDistance = Math.hypot(grabOffsetX / horizontalReach, grabOffsetY / verticalReach);
     const grabQuality = clamp(1 - normalizedDistance, 0, 1);
     const perfect = grabQuality >= GRAB_PHYSICS.perfectQuality;
@@ -127,20 +131,20 @@ export class GrabSystem {
     return this.state.prizes
       .filter((prize) => this.physics.isPhysicsPrize(prize))
       .map((prize) => {
-        const deltaX = prize.worldCenterOfMassX - zone.x;
-        const deltaY = prize.worldCenterOfMassY - zone.y;
+        const grabShape = getPokemonGrabZone(prize);
+        const body = getPokemonCollider(prize);
+        const deltaX = grabShape.x - zone.x;
+        const deltaY = grabShape.y - zone.y;
         const localX = deltaX * zone.axisX + deltaY * zone.axisY;
-        const localY = -deltaX * zone.axisY + deltaY * zone.axisX;
-        const inGrabZone = Math.abs(localX) <= zone.halfWidth + prize.bodyRadius
-          && Math.abs(localY) <= zone.halfHeight + prize.bodyRadius;
+        const inGrabZone = shapeIntersectsOrientedRect(grabShape, zone);
         const betweenProngs = Math.abs(localX) <= zone.halfWidth;
         const contact = this.claw.contactHistory.get(prize);
         const blockers = this.physics.getApproachBlockers(prize, approachOrigin);
         const evaluation = this.evaluateGrab(prize);
         const approachDepth = Math.hypot(
-          prize.worldCenterOfMassX - approachOrigin.x,
-          prize.worldCenterOfMassY - approachOrigin.y,
-        ) - prize.bodyRadius;
+          body.x - approachOrigin.x,
+          body.y - approachOrigin.y,
+        ) - shapeProjectionRadius(body, 0, 1);
         return {
           prize,
           inGrabZone,
@@ -154,7 +158,8 @@ export class GrabSystem {
           evaluation,
         };
       })
-      .filter((candidate) => candidate.inGrabZone && candidate.physicallyReachable)
+      .filter((candidate) => candidate.inGrabZone && candidate.physicallyReachable
+        && candidate.contacted && candidate.betweenProngs)
       .sort((first, second) => Number(second.contacted) - Number(first.contacted)
         || first.firstContactFrame - second.firstContactFrame
         || Number(second.betweenProngs) - Number(first.betweenProngs)

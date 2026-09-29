@@ -2,9 +2,10 @@ import {
   CLAW_MOVEMENT, DEBUG_CLAW_COLLIDERS, GAME_CONFIG, RARITY_COLORS,
 } from '../config/gameConfig.js';
 import { PokemonState } from '../core/GameState.js';
+import { getPokemonCollider, getPokemonGrabZone, shapeSupportPoint, transformLocalPoint } from '../utils/pokemonGeometry.js';
 
 export class RenderSystem {
-  constructor(canvas, state, machine, chute, claw, spawn) {
+  constructor(canvas, state, machine, chute, claw) {
     this.canvas = canvas;
     this.context = canvas.getContext('2d');
     this.context.imageSmoothingEnabled = true;
@@ -13,7 +14,68 @@ export class RenderSystem {
     this.machine = machine;
     this.chute = chute;
     this.claw = claw;
-    this.spawn = spawn;
+    this.warnedMissingAssets = new Set();
+    this.debugAssetPlaceholders = false;
+  }
+
+  getPokemonImage(prize) {
+    const character = prize.character;
+    const image = character?.image;
+    if (character?.loaded && image?.complete && image.naturalWidth > 0 && image.naturalHeight > 0) return image;
+    if (character && !character.assetLoadState && !this.warnedMissingAssets.has(character.name)) {
+      this.warnedMissingAssets.add(character.name);
+      console.warn(`Missing Pokémon asset: ${character.name} (${character.path})`);
+    }
+    return null;
+  }
+
+  drawPokemonSprite(prize, context = this.context, scale = 1) {
+    const image = this.getPokemonImage(prize);
+    if (!image) return false;
+    const visual = this.getPokemonVisualFrame(prize, image, scale);
+    context.save();
+    context.translate(prize.centerX + visual.offsetX, prize.centerY + visual.offsetY);
+    context.rotate(prize.rotation || 0);
+    context.drawImage(image, -visual.width / 2, -visual.height / 2, visual.width, visual.height);
+    context.restore();
+    return true;
+  }
+
+  getPokemonVisualFrame(prize, image = this.getPokemonImage(prize), renderScale = 1) {
+    if (!image?.naturalWidth || !image?.naturalHeight) {
+      return { width: prize.width, height: prize.height, offsetX: 0, offsetY: 0 };
+    }
+    const presentation = prize.character.visualTransform || {};
+    const uniformScale = Number.isFinite(presentation.scale) ? presentation.scale : 1;
+    const scaleX = (Number.isFinite(presentation.scaleX) ? presentation.scaleX : uniformScale) * renderScale;
+    const scaleY = (Number.isFinite(presentation.scaleY) ? presentation.scaleY : uniformScale) * renderScale;
+    const assetAspect = image.naturalWidth / image.naturalHeight;
+    const frameAspect = prize.width / prize.height;
+    const fittedWidth = assetAspect > frameAspect ? prize.width : prize.height * assetAspect;
+    const fittedHeight = assetAspect > frameAspect ? prize.width / assetAspect : prize.height;
+    // Presentation offsets are fractions of the entity frame. They never feed
+    // back into entity size or gameplay geometry.
+    const offsetX = (Number.isFinite(presentation.offsetX) ? presentation.offsetX : 0) * prize.width;
+    const offsetY = (Number.isFinite(presentation.offsetY) ? presentation.offsetY : 0) * prize.height;
+    return { width: fittedWidth * scaleX, height: fittedHeight * scaleY, offsetX, offsetY };
+  }
+
+  drawMissingAssetPlaceholder(prize, context = this.context) {
+    if (!this.debugAssetPlaceholders) return;
+    const width = Math.max(28, prize.width * 0.55);
+    const height = Math.max(28, prize.height * 0.55);
+    context.save();
+    context.fillStyle = '#fff9ef';
+    context.strokeStyle = '#e6464d';
+    context.lineWidth = 2;
+    context.fillRect(prize.centerX - width / 2, prize.centerY - height / 2, width, height);
+    context.strokeRect(prize.centerX - width / 2, prize.centerY - height / 2, width, height);
+    context.fillStyle = '#e6464d';
+    context.font = 'bold 16px monospace';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText('?', prize.centerX, prize.centerY);
+    context.restore();
   }
 
   drawBackground() {
@@ -99,16 +161,6 @@ export class RenderSystem {
     }
   }
 
-  drawPixelPokeball(prize) {
-    const { context } = this;
-    const y = Math.round(prize.bottomY - 15 * GAME_CONFIG.prizeScale);
-    context.save(); context.translate(Math.round(prize.centerX), y); context.scale(GAME_CONFIG.prizeScale, GAME_CONFIG.prizeScale);
-    context.fillStyle = prize.color; context.fillRect(-22, -22, 44, 20);
-    context.fillStyle = '#fff9ef'; context.fillRect(-22, -2, 44, 21);
-    context.fillStyle = '#243346'; context.fillRect(-25, -5, 50, 6); context.fillRect(-7, -9, 14, 14);
-    context.fillStyle = '#fff9ef'; context.fillRect(-3, -5, 6, 6); context.restore();
-  }
-
   drawSparkle(x, y, size, alpha) {
     const { context } = this;
     context.save(); context.globalAlpha = alpha; context.fillStyle = '#fff9d7';
@@ -133,18 +185,7 @@ export class RenderSystem {
       context.fillStyle = 'rgba(36, 51, 70, .14)'; context.fillRect(prize.centerX - prize.width * 0.28, shadowY, prize.width * 0.56, 3);
     }
     const scale = isChuteDrop ? prize.dropScale : 1;
-    if (prize.character.loaded) {
-      const dimensions = this.spawn.getSpriteDimensions(prize.character);
-      context.save(); context.translate(prize.centerX, prize.centerY); context.rotate(prize.rotation || 0);
-      context.drawImage(
-        prize.character.image,
-        -dimensions.width * scale / 2,
-        -dimensions.height * scale / 2,
-        dimensions.width * scale,
-        dimensions.height * scale,
-      );
-      context.restore();
-    } else this.drawPixelPokeball(prize);
+    if (!this.drawPokemonSprite(prize, context, scale)) this.drawMissingAssetPlaceholder(prize, context);
     if (!isChuteDrop && prize.shiny) {
       const phase = time / 450 + index * 1.73;
       this.drawSparkle(prize.centerX - 27 + Math.sin(phase) * 18, prize.centerY + Math.cos(phase * 0.9) * 16, 6, 0.55);
@@ -164,10 +205,7 @@ export class RenderSystem {
     context.restore();
     if (claw.caught) {
       const prize = claw.caught;
-      if (prize.character.loaded) {
-        context.save(); context.translate(prize.centerX, prize.centerY); context.rotate(prize.rotation || 0);
-        context.drawImage(prize.character.image, -prize.width / 2, -prize.height / 2, prize.width, prize.height); context.restore();
-      } else this.drawPixelPokeball(prize);
+      if (!this.drawPokemonSprite(prize, context)) this.drawMissingAssetPlaceholder(prize, context);
     }
     context.save();
     context.translate(claw.pivotX, claw.pivotY);
@@ -181,7 +219,7 @@ export class RenderSystem {
     context.fillStyle = '#243346'; context.fillRect(-14 - spread, 10, 8, 24); context.fillRect(6 + spread, 10, 8, 24);
     context.fillRect(-20 - spread, 30, 15, 8); context.fillRect(5 + spread, 30, 15, 8);
     context.restore();
-    if (DEBUG_CLAW_COLLIDERS) this.drawClawColliders();
+    if (DEBUG_CLAW_COLLIDERS || this.debugClawColliders) this.drawClawColliders();
   }
 
   drawClawColliders() {
@@ -244,10 +282,58 @@ export class RenderSystem {
     });
   }
 
+  drawPokemonGeometry(prize, context = this.context) {
+    const image = this.getPokemonImage(prize);
+    const visual = this.getPokemonVisualFrame(prize, image);
+    context.save();
+    context.translate(prize.centerX + visual.offsetX, prize.centerY + visual.offsetY);
+    context.rotate(prize.rotation || 0);
+    context.strokeStyle = '#fff';
+    context.lineWidth = 1.5;
+    context.setLineDash([3, 3]);
+    context.strokeRect(-visual.width / 2, -visual.height / 2, visual.width, visual.height);
+    context.restore();
+    for (const [shape, color] of [
+      [getPokemonCollider(prize), '#ff4040'],
+      [getPokemonGrabZone(prize), '#36d36b'],
+    ]) {
+      context.save();
+      context.translate(shape.x, shape.y);
+      context.rotate(shape.angle);
+      context.strokeStyle = color;
+      context.lineWidth = 2;
+      context.beginPath();
+      if (shape.type === 'rect') context.rect(-shape.radiusX, -shape.radiusY, shape.radiusX * 2, shape.radiusY * 2);
+      else context.ellipse(0, 0, shape.radiusX, shape.radiusY, 0, 0, Math.PI * 2);
+      context.stroke();
+      context.restore();
+    }
+    const mass = transformLocalPoint(prize, prize.geometry.centerOfMass.x, prize.geometry.centerOfMass.y);
+    const anchor = transformLocalPoint(prize, prize.geometry.carryAnchor.x, prize.geometry.carryAnchor.y);
+    const ground = shapeSupportPoint(getPokemonCollider(prize), 0, 1);
+    for (const [x, y, color, radius] of [
+      [anchor.x, anchor.y, '#ffd342', 4],
+      [mass.x, mass.y, '#26a8ff', 4],
+      [ground.x, ground.y, '#dc73ff', 3],
+    ]) {
+      context.fillStyle = color;
+      context.beginPath();
+      context.arc(x, y, radius, 0, Math.PI * 2);
+      context.fill();
+    }
+  }
+
+  drawPokemonPhysics() {
+    for (const prize of this.state.prizes) {
+      if (!prize.collected) this.drawPokemonGeometry(prize);
+    }
+  }
+
   render(time, elapsed) {
     this.context.clearRect(0, 0, this.machine.width, this.machine.height);
     this.drawBackground(); this.drawChute(elapsed);
     this.state.prizes.forEach((prize, index) => this.drawPrize(prize, index, time));
     this.drawChuteForeground(); this.drawClaw(time); this.renderParticles(elapsed);
+    if (GAME_CONFIG.debugPokemonPhysics || this.debugPokemonPhysics) this.drawPokemonPhysics();
   }
 }

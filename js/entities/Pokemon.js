@@ -1,5 +1,6 @@
 import { PokemonState } from '../core/GameState.js';
 import { POKEMON_GRAB_ANCHOR } from '../config/gameConfig.js';
+import { createPokemonGeometry } from '../utils/pokemonGeometry.js';
 
 function normalizedAnchor(value, fallback) {
   return Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : fallback;
@@ -43,6 +44,11 @@ export class Pokemon {
       shiny,
       spawnIndex: index,
     });
+    this.geometry = createPokemonGeometry(character, this.width, this.height);
+    this.centerOfMassX = 0.5 + this.geometry.centerOfMass.x / this.width;
+    this.centerOfMassY = 0.5 + this.geometry.centerOfMass.y / this.height;
+    this.grabAnchorX = 0.5 + this.geometry.carryAnchor.x / this.width;
+    this.grabAnchorY = 0.5 + this.geometry.carryAnchor.y / this.height;
     this.updateGeometry();
   }
 
